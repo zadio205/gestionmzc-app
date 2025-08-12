@@ -30,9 +30,11 @@ Le composant `ClientsLedgerPage` intègre maintenant des fonctionnalités d'inte
 ```bash
 # Créer un compte sur https://huggingface.co/
 # Générer un token API gratuit
-# Ajouter dans .env.local :
+# Ajouter dans .env.local (ne jamais le committer) :
 HUGGING_FACE_TOKEN=hf_votre_token_ici
 ```
+
+> Important: Ne mettez jamais de token réel dans la documentation ni dans le code versionné. Utilisez des variables d'environnement (ex: `.env.local`, déjà ignoré par `.gitignore`). Si un token a été exposé, révoquez-le immédiatement dans votre compte Hugging Face et générez-en un nouveau.
 
 **Avantages :**
 - Complètement gratuit
