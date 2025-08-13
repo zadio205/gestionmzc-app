@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Search, Plus, Edit, Trash2, Mail, Eye } from 'lucide-react';
 import ClientDetailsModal from '@/components/clients/ClientDetailsModal';
 import { Client } from '@/types';
+import { supabaseBrowser } from '@/lib/supabase/client';
 
 interface ClientWithExtras extends Client {
   contact?: string;
@@ -39,10 +40,31 @@ const ClientsManagement = () => {
       try {
         setLoadingClients(true);
         setError(null);
-        const res = await fetch('/api/clients', { cache: 'no-store' });
-        if (!res.ok) throw new Error('Erreur de chargement');
-        const data = await res.json();
-        setClients(data.clients || []);
+        const { data, error } = await supabaseBrowser
+          .from('clients')
+          .select('*');
+        if (error) throw error;
+
+        const mapped: ClientWithExtras[] = (data || []).map((row: any) => ({
+          _id: row._id || row.id,
+          name: row.name || '',
+          email: row.email || '',
+          contact: row.contact || '',
+          phone: row.phone || '',
+          address: row.address || '',
+          siret: row.siret || '',
+          industry: row.industry || '',
+          dossierNumber: row.dossierNumber || '',
+          collaboratorId: row.collaboratorId || '',
+          documents: row.documents || [],
+          isActive: row.isActive ?? true,
+          createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
+          updatedAt: row.updatedAt ? new Date(row.updatedAt) : new Date(),
+          status: row.status,
+          lastActivity: row.lastActivity || row.updatedAt || row.createdAt || undefined,
+          collaborator: row.collaborator,
+        }));
+        setClients(mapped);
   } catch {
         setError('Impossible de charger les clients');
       } finally {
@@ -99,24 +121,37 @@ const ClientsManagement = () => {
     event.preventDefault();
     try {
       setError(null);
-      const res = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          contact: form.contact || undefined,
-          phone: form.phone || undefined,
-          dossierNumber: form.dossierNumber || undefined,
-          // address intentionally omitted in add modal for now
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Erreur lors de l\'ajout');
-      }
-      const { client } = await res.json();
-      setClients(prev => [client, ...prev]);
+      const payload = {
+        name: form.name,
+        email: form.email,
+        contact: form.contact || null,
+        phone: form.phone || null,
+        dossierNumber: form.dossierNumber || null,
+        collaboratorId: user?._id || null,
+      } as const;
+
+      const { data, error } = await supabaseBrowser
+        .from('clients')
+        .insert(payload)
+        .select('*')
+        .single();
+      if (error) throw error;
+
+      const newClient: ClientWithExtras = {
+        _id: (data as any)._id || (data as any).id,
+        name: (data as any).name || '',
+        email: (data as any).email || '',
+        contact: (data as any).contact || '',
+        phone: (data as any).phone || '',
+        dossierNumber: (data as any).dossierNumber || '',
+        collaboratorId: (data as any).collaboratorId || '',
+        documents: (data as any).documents || [],
+        isActive: (data as any).isActive ?? true,
+        createdAt: (data as any).createdAt ? new Date((data as any).createdAt) : new Date(),
+        updatedAt: (data as any).updatedAt ? new Date((data as any).updatedAt) : new Date(),
+      };
+
+      setClients(prev => [newClient, ...prev]);
       setShowAddModal(false);
       setForm({ name: '', contact: '', email: '', phone: '', dossierNumber: '' });
     } catch (err) {

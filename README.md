@@ -130,6 +130,17 @@ src/
 2. Configurer les accès réseau
 3. Mettre à jour `MONGODB_URI` dans les variables d'environnement
 
+#### Rôles via variables d'environnement (optionnel)
+
+Pour promouvoir automatiquement certains emails en administrateur ou collaborateur après connexion, définissez ces variables publiques (exposées au client) sur votre plateforme d'hébergement ou dans `.env.local`:
+
+```env
+NEXT_PUBLIC_ADMIN_EMAILS=admin@masyzarac.com,autre.admin@exemple.com
+NEXT_PUBLIC_COLLABORATEUR_EMAILS=collaborateur@masyzarac.com
+```
+
+Ces listes sont utilisées côté client pour surclasser le rôle issu de Supabase (metadata), avec priorité: admin > collaborateur > client.
+
 ## 📝 Prochaines Étapes
 
 1. **Tableaux de bord personnalisés** - Implémenter des tableaux de bord spécifiques par client

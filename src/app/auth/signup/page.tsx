@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { supabaseBrowser } from '@/lib/supabase/client';
 
 export default function SignUp() {
   const [formData, setFormData] = useState({
@@ -36,24 +37,28 @@ export default function SignUp() {
     }
 
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    const { error } = await supabaseBrowser.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+      // Rôle par défaut: admin (demande utilisateur)
+      data: { name: formData.name, role: 'admin' },
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-        }),
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        router.push('/auth/signin?message=Compte créé avec succès');
+      if (error) {
+        setError(error.message);
       } else {
-        setError(data.error || 'Une erreur est survenue');
+        // En dev: tenter de confirmer automatiquement l'utilisateur pour éviter l'attente d'email
+        if (process.env.NODE_ENV !== 'production') {
+          try {
+            await fetch('/api/auth/dev-confirm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: formData.email }),
+            });
+          } catch {}
+        }
+        router.push('/auth/signin?message=Compte créé avec succès');
       }
     } catch (error) {
       setError('Une erreur est survenue');

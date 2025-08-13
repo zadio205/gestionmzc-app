@@ -1,17 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { supabaseBrowser } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function SignIn() {
+  const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push(`/${user.role}/dashboard`);
+    }
+  }, [authLoading, user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,30 +28,65 @@ export default function SignIn() {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Rediriger selon le rôle
-        if (data.user.role === 'admin') {
-          router.push('/admin/dashboard');
-        } else if (data.user.role === 'collaborateur') {
-          router.push('/collaborateur/dashboard');
-        } else {
-          router.push('/client/dashboard');
-        }
-      } else {
-        setError(data.error || 'Erreur de connexion');
+      const { data, error } = await supabaseBrowser.auth.signInWithPassword({ email, password });
+      if (error) {
+        setError(error.message);
+        return;
       }
+      redirectAfterLogin(data.user);
     } catch (error) {
       setError('Une erreur est survenue');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calcule le rôle et redirige
+  const redirectAfterLogin = (user: any) => {
+    // Déduire le rôle: metadata puis surclassement par listes d'emails (env publiques)
+    const metaRole = (user?.user_metadata?.role as 'admin' | 'collaborateur' | 'client') || 'admin';
+    const userEmail = (user?.email || '').toLowerCase();
+    const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
+      .split(',')
+      .map(e => e.trim().toLowerCase())
+      .filter(Boolean);
+    const collabEmails = (process.env.NEXT_PUBLIC_COLLABORATEUR_EMAILS || '')
+      .split(',')
+      .map(e => e.trim().toLowerCase())
+      .filter(Boolean);
+    const role: 'admin' | 'collaborateur' | 'client' = userEmail && adminEmails.includes(userEmail)
+      ? 'admin'
+      : userEmail && collabEmails.includes(userEmail)
+        ? 'collaborateur'
+        : metaRole;
+    if (role === 'admin') router.push('/admin/dashboard');
+    else if (role === 'collaborateur') router.push('/collaborateur/dashboard');
+    else router.push('/client/dashboard');
+  };
+
+  const forceConfirmDev = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await fetch('/api/auth/dev-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j?.error || 'Echec de confirmation');
+        return;
+      }
+      // Tente une reconnexion directe
+      const { data, error } = await supabaseBrowser.auth.signInWithPassword({ email, password });
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      redirectAfterLogin(data.user);
+    } catch (e: any) {
+      setError('Impossible de forcer la confirmation');
     } finally {
       setLoading(false);
     }
@@ -78,6 +122,14 @@ export default function SignIn() {
             <div className="text-red-600 text-sm text-center">{error}</div>
           )}
 
+          {error && process.env.NODE_ENV !== 'production' && (
+            <div className="text-center">
+              <button type="button" onClick={forceConfirmDev} className="mt-2 text-xs text-blue-600 hover:text-blue-500">
+                Forcer la confirmation (dev)
+              </button>
+            </div>
+          )}
+
           <Button
             type="submit"
             className="w-full"
@@ -92,14 +144,7 @@ export default function SignIn() {
             </Link>
           </div>
 
-          <div className="mt-6 p-4 bg-blue-50 rounded-md">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">Comptes de test :</h3>
-            <div className="text-xs text-blue-700 space-y-1">
-              <div><strong>Admin:</strong> admin@masyzarac.com / admin123</div>
-              <div><strong>Collaborateur:</strong> collaborateur@masyzarac.com / collab123</div>
-              <div><strong>Client:</strong> client@masyzarac.com / client123</div>
-            </div>
-          </div>
+          
         </form>
       </div>
     </div>

@@ -1,94 +1,95 @@
-import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
-import dbConnect from '@/lib/mongodb';
-import Client from '@/models/Client';
+import { NextResponse } from 'next/server';
+import { supabaseServer } from '@/lib/supabase';
+import { InputValidator } from '@/utils/inputValidation';
 
-const createClientSchema = z.object({
-  name: z.string().min(1, 'Le nom est requis'),
-  email: z.string().email('Email invalide'),
-  contact: z.string().optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  siret: z.string().optional(),
-  industry: z.string().optional(),
-  dossierNumber: z.string().optional(),
-  collaboratorId: z.string().optional(), // autoriser l'admin à assigner, sinon par défaut à l'utilisateur courant
-});
-
-function getAuth(request: NextRequest): { userId: string; role: string } | null {
-  const token = request.cookies.get('token')?.value;
-  if (!token) return null;
+// GET /api/clients -> { clients: [...] }
+export async function GET() {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET! ) as { userId: string; role: string };
-    return { userId: payload.userId, role: payload.role };
-  } catch {
-    return null;
-  }
-}
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*');
 
-export async function GET(request: NextRequest) {
-  try {
-    const auth = getAuth(request);
-    if (!auth) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    await dbConnect();
-
-    const { userId, role } = auth;
-    const filter = role === 'admin' ? {} : { collaboratorId: userId };
-    const clients = await Client.find(filter).sort({ createdAt: -1 }).lean();
+    const clients = (data || []).map((row: any) => ({
+      _id: row._id || row.id,
+      name: row.name || '',
+      email: row.email || '',
+      contact: row.contact || '',
+      phone: row.phone || '',
+      address: row.address || '',
+      siret: row.siret || '',
+      industry: row.industry || '',
+      dossierNumber: row.dossierNumber || '',
+      collaboratorId: row.collaboratorId || '',
+      documents: row.documents || [],
+      isActive: row.isActive ?? true,
+      createdAt: row.createdAt || null,
+      updatedAt: row.updatedAt || null,
+      status: row.status,
+      lastActivity: row.lastActivity || row.updatedAt || row.createdAt || null,
+      collaborator: row.collaborator,
+    }));
 
     return NextResponse.json({ clients }, { status: 200 });
-  } catch (error) {
-    console.error('Erreur GET /api/clients:', error);
-    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Erreur serveur' }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+// POST /api/clients -> { client }
+export async function POST(request: Request) {
   try {
-    const auth = getAuth(request);
-    if (!auth) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    const body = await request.json().catch(() => ({}));
+    const name = InputValidator.validateText(body?.name, 120);
+    const email = typeof body?.email === 'string' ? body.email.trim() : '';
+
+    if (!name) {
+      return NextResponse.json({ error: 'Le nom est requis' }, { status: 400 });
+    }
+    if (!email || !InputValidator.validateEmail(email)) {
+      return NextResponse.json({ error: "Email invalide" }, { status: 400 });
     }
 
-    const body = await request.json();
-    const parse = createClientSchema.safeParse(body);
-    if (!parse.success) {
-      return NextResponse.json({ error: parse.error.flatten() }, { status: 400 });
+    const payload = {
+      name,
+      email,
+      contact: body?.contact ? InputValidator.validateText(body.contact, 120) : null,
+      phone: body?.phone ? InputValidator.validateText(body.phone, 40) : null,
+      dossierNumber: body?.dossierNumber ? InputValidator.validateText(body.dossierNumber, 60) : null,
+      collaboratorId: body?.collaboratorId ? String(body.collaboratorId) : null,
+    } as const;
+
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from('clients')
+      .insert(payload)
+      .select('*')
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const data = parse.data;
+    const client = {
+      _id: (data as any)._id || (data as any).id,
+      name: (data as any).name,
+      email: (data as any).email,
+      contact: (data as any).contact || '',
+      phone: (data as any).phone || '',
+      dossierNumber: (data as any).dossierNumber || '',
+      collaboratorId: (data as any).collaboratorId || '',
+      documents: (data as any).documents || [],
+      isActive: (data as any).isActive ?? true,
+      createdAt: (data as any).createdAt || null,
+      updatedAt: (data as any).updatedAt || null,
+    };
 
-    await dbConnect();
-
-    // Empêcher les doublons par email
-    const exists = await Client.findOne({ email: data.email });
-    if (exists) {
-      return NextResponse.json({ error: 'Un client avec cet email existe déjà' }, { status: 409 });
-    }
-
-    const collaboratorId = data.collaboratorId || auth.userId;
-
-    const created = await Client.create({
-      name: data.name,
-      email: data.email,
-  contact: data.contact,
-      phone: data.phone,
-      address: data.address,
-      siret: data.siret,
-      industry: data.industry,
-      dossierNumber: data.dossierNumber,
-      collaboratorId,
-      documents: [],
-      isActive: true,
-    });
-
-    return NextResponse.json({ client: created }, { status: 201 });
-  } catch (error) {
-    console.error('Erreur POST /api/clients:', error);
-    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 });
+    return NextResponse.json({ client }, { status: 201 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Erreur serveur' }, { status: 500 });
   }
 }

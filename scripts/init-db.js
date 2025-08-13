@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(process.cwd(), '.env.local') });
 
 // Configuration de la base de données
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://vadomada:WpBk3AzfU5RZqtlH@mzcapp.rmb6owh.mongodb.net/masyzarac';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+const DB_NAME = process.env.DB_NAME || 'masyzarac';
 
 // Schéma utilisateur simplifié pour le script
 const UserSchema = new mongoose.Schema({
@@ -18,7 +21,7 @@ const User = mongoose.model('User', UserSchema);
 async function initDatabase() {
   try {
     // Connexion à MongoDB
-    await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(MONGODB_URI, { dbName: DB_NAME });
     console.log('✅ Connexion à MongoDB réussie');
 
     // Vérifier si un admin existe déjà
