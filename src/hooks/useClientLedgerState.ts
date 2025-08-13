@@ -196,9 +196,13 @@ export const useClientLedgerState = (clientId: string) => {
         throw new Error("Identifiant client invalide");
       }
 
-  const newEntriesRaw: ClientLedger[] = importedData
-        .filter((row) => row?.isValid)
-        .map((row, index) => {
+  const newEntriesRaw: ClientLedger[] = (() => {
+        // Statefull parsing pour gérer les lignes d'en-tête client/compte
+        let currentClientName = '';
+        let currentAccountNumber = '';
+        const out: ClientLedger[] = [];
+        const nowBase = Date.now();
+        importedData.filter(r => r?.isValid).forEach((row, idx) => {
           // Normalisation locale des clés d'en-tête pour recherche robuste
           const normalize = (s: string) =>
             String(s || '')
@@ -211,11 +215,14 @@ export const useClientLedgerState = (clientId: string) => {
               .trim();
 
           const headerMap: Record<string, string> = {};
-          Object.keys(row.data || {}).forEach((key) => {
+          const keysOriginal = Object.keys(row.data || {});
+          const keysNorm = keysOriginal.map(k => normalize(k));
+          keysOriginal.forEach((key) => {
             headerMap[normalize(key)] = key; // map normalisé -> clé originale
           });
 
           const findColumnValue = (possibleNames: string[]) => {
+            // 1) Recherche exacte par clé normalisée
             for (const name of possibleNames) {
               const norm = normalize(name);
               const originalKey = headerMap[norm];
@@ -224,66 +231,151 @@ export const useClientLedgerState = (clientId: string) => {
                 if (value !== '') return value;
               }
             }
-            return "";
+            // 2) Recherche floue: en-tête qui contient le nom possible (et inversement)
+            for (const name of possibleNames) {
+              const target = normalize(name);
+              let matchIndex = keysNorm.findIndex(h => h.includes(target) || target.includes(h));
+              if (matchIndex >= 0) {
+                const originalKey = keysOriginal[matchIndex];
+                const v = row.data[originalKey];
+                if (v !== null && v !== undefined) {
+                  const value = String(v).trim();
+                  if (value !== '') return value;
+                }
+              }
+            }
+            return '';
           };
 
-          // Extraction des données selon le format CSV : Date,Nom Client,N° Compte,Libellé,Débit,Crédit,Référence
-          const dateStr = findColumnValue(["Date", "date"]);
-          const accountNumber = CSVSanitizer.sanitizeString(
-            findColumnValue(["N° Compte", "Compte", "accountNumber", "N°compte", "N°Compte", "Numéro compte"])
+          // Extraction des valeurs dans la ligne
+          const dateStr = findColumnValue(['Date', 'date']);
+          const rawAccountNumber = CSVSanitizer.sanitizeString(
+            findColumnValue([
+              'N° Compte', 'N°compte', 'N°Compte', 'Numéro compte', 'Numéro de compte', 'Numero compte', 'Numero de compte',
+              'Compte', 'Compte client', 'Compte tiers', 'Compte auxiliaire', 'Code client', 'Code',
+              'accountNumber',
+            ])
           );
           const rawClientName = CSVSanitizer.sanitizeString(
-            findColumnValue(["Nom Client", "Client", "clientName", "Nom client", "nom client"])
+            findColumnValue(['Nom Client', 'Client', 'clientName', 'Nom client', 'nom client'])
           );
-          // Normalisation du nom client: vide si numérique, identique au compte, ou code-like (ex: C4100000, CDIV0001)
+          let description = CSVSanitizer.sanitizeString(
+            findColumnValue([
+              'Libellé', 'Libelle', 'Intitulé', 'Intitule',
+              'Libellé mouvement', 'Libelle mouvement', 'Libellé écriture', 'Libelle écriture', 'Libellé operation', 'Libelle operation',
+              'Description', 'description', 'libelle'
+            ])
+          );
+          const debitStr = findColumnValue(['Débit', 'Debit', 'debit', 'débits', 'montant débit', 'montant debit']);
+          const creditStr = findColumnValue(['Crédit', 'Credit', 'credit', 'crédits', 'montant crédit', 'montant credit']);
+          const soldeStr = findColumnValue(['Solde', 'Balance', 'balance', 'solde']);
+          const reference = CSVSanitizer.sanitizeString(
+            findColumnValue(['Référence', 'Reference', 'Ref', 'reference', 'référence'])
+          );
+
+          // Déterminer si la ligne est une ligne d'en-tête (définit le contexte mais n'est pas une écriture)
+          const isHeaderLine = !dateStr && !description && (!!rawClientName || !!rawAccountNumber);
+          if (isHeaderLine) {
+            // Mettre à jour le contexte courant
+            const normalizeCompare = (s: string) => s.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            const isNumericOnly = (s: string) => {
+              const alnum = s.replace(/[^A-Za-z0-9]/g, '');
+              return alnum.length > 0 && /^[0-9]+$/.test(alnum);
+            };
+            const looksLikeCode = (s: string) => /^[A-Z]{1,5}\d{4,}$/.test(normalizeCompare(s));
+            // ClientName nettoyé
+            const cleanedClientName = (!rawClientName || isNumericOnly(rawClientName) || (!!rawAccountNumber && normalizeCompare(rawClientName) === normalizeCompare(rawAccountNumber)) || looksLikeCode(rawClientName))
+              ? ''
+              : rawClientName;
+            if (cleanedClientName) currentClientName = cleanedClientName;
+            if (rawAccountNumber) currentAccountNumber = rawAccountNumber;
+            return; // ne pas pousser d'écriture
+          }
+
+          // Pas une en-tête: générer potentiellement une écriture
+          const date = CSVSanitizer.sanitizeDate(dateStr);
+          // Si cette ligne ne porte pas client/compte, reprendre du contexte
+          const accountNumber = rawAccountNumber || currentAccountNumber || '';
+          // Nettoyage nom client par heuristique
           const normalizeCompare = (s: string) => s.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
           const isNumericOnly = (s: string) => {
             const alnum = s.replace(/[^A-Za-z0-9]/g, '');
             return alnum.length > 0 && /^[0-9]+$/.test(alnum);
           };
           const looksLikeCode = (s: string) => /^[A-Z]{1,5}\d{4,}$/.test(normalizeCompare(s));
-          const clientName = (!rawClientName ||
-            isNumericOnly(rawClientName) ||
-            (!!accountNumber && normalizeCompare(rawClientName) === normalizeCompare(accountNumber)) ||
-            looksLikeCode(rawClientName)
-          ) ? '' : rawClientName;
-          const description = CSVSanitizer.sanitizeString(
-            findColumnValue(["Libellé", "Description", "description", "libelle"])
-          );
-          const debitStr = findColumnValue(["Débit", "Debit", "debit", "débits", "montant débit", "montant debit"]);
-          const creditStr = findColumnValue(["Crédit", "Credit", "credit", "crédits", "montant crédit", "montant credit"]);
-          const reference = CSVSanitizer.sanitizeString(
-            findColumnValue(["Référence", "Reference", "Ref", "reference", "référence"])
-          );
+          let clientName = rawClientName || currentClientName || '';
+          if (!clientName || isNumericOnly(clientName) || (!!accountNumber && normalizeCompare(clientName) === normalizeCompare(accountNumber)) || looksLikeCode(clientName)) {
+            clientName = currentClientName || '';
+          }
 
-          const debit = CSVSanitizer.sanitizeNumeric(debitStr);
-          const credit = CSVSanitizer.sanitizeNumeric(creditStr);
-          const date = CSVSanitizer.sanitizeDate(dateStr);
+          let debit = CSVSanitizer.sanitizeNumeric(debitStr);
+          let credit = CSVSanitizer.sanitizeNumeric(creditStr);
+          const solde = CSVSanitizer.sanitizeNumeric(soldeStr);
+          // Si seuls les soldes sont fournis, dériver débit/crédit du signe du solde
+          if ((debit === 0 && credit === 0) && solde !== 0) {
+            if (solde < 0) {
+              credit = Math.abs(solde);
+            } else {
+              debit = solde;
+            }
+          }
+          const balance = (debit !== 0 || credit !== 0) ? (debit - credit) : (solde || 0);
 
-          const entry = {
-            _id: `imported-${Date.now()}-${index}`,
+          // Fallback: si pas de libellé trouvé, tenter d'inférer depuis la première colonne textuelle non-numérique
+          if (!description) {
+            const skipTargets = [
+              // ensembles de colonnes à ignorer
+              'date', 'nom client', 'client', 'client name', 'clientname', 'client_name',
+              'n° compte', 'numero compte', 'numéro compte', 'numéro de compte', 'account number', 'accountnumber', 'account_number', 'compte', 'compte client', 'compte tiers', 'compte auxiliaire', 'code client', 'code',
+              'debit', 'débit', 'montant debit', 'montant débit',
+              'credit', 'crédit', 'montant credit', 'montant crédit',
+              'solde', 'balance',
+              'référence', 'reference', 'ref',
+              'n° facture', 'facture', 'invoice number', 'invoice_number', 'invoiceNumber'
+            ].map(s => s.toLowerCase());
+            for (let i = 0; i < keysOriginal.length; i++) {
+              const key = keysOriginal[i];
+              const normKey = normalize(key);
+              if (skipTargets.some(t => normKey.includes(t) || t.includes(normKey))) continue;
+              const val = row.data[key];
+              if (val !== null && val !== undefined) {
+                const text = String(val).trim();
+                if (text) {
+                  // Écarter les valeurs purement numériques / montants
+                  const numericLike = /^[-+]?\d{1,3}([\s,.]\d{3})*(\,\d+|\.\d+)?$/.test(text.replace(/\u00A0/g, ' '));
+                  if (!numericLike) {
+                    description = CSVSanitizer.sanitizeString(text);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+
+          // Si la ligne est totalement vide (pas de date, pas de libellé, pas de montants, pas de référence) on ignore
+          const hasContent = !!date || !!description || !!reference || debit !== 0 || credit !== 0 || solde !== 0;
+          if (!hasContent) return;
+
+          out.push({
+            _id: `imported-${nowBase}-${idx}`,
             date,
-            accountNumber: accountNumber,
+            accountNumber,
             accountName: clientName,
             description,
             debit,
             credit,
-            balance: debit - credit,
+            balance,
             reference,
             clientId,
-            type: "client" as const,
-            clientName: clientName,
-            invoiceNumber: findColumnValue([
-              "N° Facture",
-              "Facture",
-              "invoiceNumber",
-            ]),
+            type: 'client',
+            clientName,
+            invoiceNumber: findColumnValue(['N° Facture', 'Facture', 'invoiceNumber']),
             createdAt: new Date(),
             isImported: true,
-          };
-
-          return entry;
+          });
         });
+        return out;
+      })();
 
   // Enrichissement IA des écritures importées
   let newEntries = newEntriesRaw;
@@ -299,6 +391,12 @@ export const useClientLedgerState = (clientId: string) => {
   const { unique } = dedupBySignature(newEntries, getClientLedgerSignature, existingSigs);
   const addedCount = unique.length;
   const duplicateCount = newEntries.length - addedCount;
+      // Mettre à disposition immédiatement en mémoire + cache (avant persistence)
+      if (addedCount > 0) {
+        const merged = [...importedEntries, ...unique];
+        setImportedEntries(merged);
+        setLedgerCache(clientId, merged);
+      }
       // Persist to DB puis rafraîchir depuis la DB (source de vérité)
       try {
         // Ignorer l'enregistrement des lignes sans N° Compte (pas de valeur par défaut)
@@ -311,6 +409,16 @@ export const useClientLedgerState = (clientId: string) => {
             message: `${skippedNoAccount} ligne(s) sans N° Compte ne seront pas enregistrées en base.`,
             duration: 5000,
           });
+        }
+        // Si aucune écriture valide à enregistrer, éviter l'appel API (sinon 400)
+        if (toSave.length === 0) {
+          showNotification?.({
+            type: 'warning',
+            title: 'Aucune écriture enregistrée',
+            message: "Toutes les lignes importées sont sans N° Compte. Rien à persister en base.",
+            duration: 5000,
+          });
+          return; // on sort proprement, les données restent visibles en mémoire
         }
         const res = await saveClientLedger(toSave.map(e => ({ ...e })));
         // Recharger depuis la base pour s'aligner sur l'état persistant

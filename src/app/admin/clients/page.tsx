@@ -40,12 +40,15 @@ const ClientsManagement = () => {
       try {
         setLoadingClients(true);
         setError(null);
-        const { data, error } = await supabaseBrowser
-          .from('clients')
-          .select('*');
-        if (error) throw error;
+        const res = await fetch('/api/clients');
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Erreur chargement clients: ${res.status} ${text}`);
+        }
+        const body = await res.json();
+        const rows = (body?.clients || []) as any[];
 
-        const mapped: ClientWithExtras[] = (data || []).map((row: any) => ({
+        const mapped: ClientWithExtras[] = rows.map((row: any) => ({
           _id: row._id || row.id,
           name: row.name || '',
           email: row.email || '',
@@ -54,14 +57,14 @@ const ClientsManagement = () => {
           address: row.address || '',
           siret: row.siret || '',
           industry: row.industry || '',
-          dossierNumber: row.dossierNumber || '',
-          collaboratorId: row.collaboratorId || '',
+          dossierNumber: row.dossier_number || row.dossierNumber || '',
+          collaboratorId: row.collaborator_id || row.collaboratorId || '',
           documents: row.documents || [],
-          isActive: row.isActive ?? true,
-          createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
-          updatedAt: row.updatedAt ? new Date(row.updatedAt) : new Date(),
+          isActive: (row.is_active ?? row.isActive) ?? true,
+          createdAt: row.created_at ? new Date(row.created_at) : (row.createdAt ? new Date(row.createdAt) : new Date()),
+          updatedAt: row.updated_at ? new Date(row.updated_at) : (row.updatedAt ? new Date(row.updatedAt) : new Date()),
           status: row.status,
-          lastActivity: row.lastActivity || row.updatedAt || row.createdAt || undefined,
+          lastActivity: row.last_activity || row.updated_at || row.created_at || row.lastActivity || row.updatedAt || row.createdAt || undefined,
           collaborator: row.collaborator,
         }));
         setClients(mapped);
@@ -100,8 +103,10 @@ const ClientsManagement = () => {
   };
 
   const handleSendEmail = (client: ClientWithExtras) => {
-    // Ouvrir le client email par défaut avec l'adresse du client
-    window.location.href = `mailto:${client.email}?subject=Contact depuis Masyzarac&body=Bonjour ${client.contact || 'Client'},`;
+  // Ouvrir le client email par défaut avec l'adresse du client
+  const subject = encodeURIComponent('Contact depuis Masyzarac');
+  const body = encodeURIComponent(`Bonjour ${client.contact || 'Client'},\n\n`);
+  window.location.href = `mailto:${encodeURIComponent(client.email)}?subject=${subject}&body=${body}`;
   };
 
   const handleDeleteClient = (client: ClientWithExtras) => {
@@ -109,12 +114,24 @@ const ClientsManagement = () => {
     setShowDeleteModal(true);
   };
 
-  const confirmDelete = () => {
-    // Ici vous ajouteriez la logique pour supprimer le client de la base de données
-    console.log('Suppression du client:', selectedClient);
-    setShowDeleteModal(false);
-    setSelectedClient(null);
-    // Actualiser la liste des clients après suppression
+  const confirmDelete = async () => {
+    if (!selectedClient) return;
+    try {
+      setError(null);
+      const res = await fetch(`/api/clients?id=${encodeURIComponent(selectedClient._id)}`, { method: 'DELETE' });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text; try { const j = JSON.parse(text); msg = j?.error || msg; } catch {}
+        throw new Error(msg);
+      }
+      setClients(prev => prev.filter(c => c._id !== selectedClient._id));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Suppression impossible';
+      setError(msg);
+    } finally {
+      setShowDeleteModal(false);
+      setSelectedClient(null);
+    }
   };
 
   const handleAddSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -130,12 +147,19 @@ const ClientsManagement = () => {
         collaboratorId: user?._id || null,
       } as const;
 
-      const { data, error } = await supabaseBrowser
-        .from('clients')
-        .insert(payload)
-        .select('*')
-        .single();
-      if (error) throw error;
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try { const j = JSON.parse(text); msg = j?.error || msg; } catch {}
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+      const body = JSON.parse(text);
+      const data = body?.client || body;
 
       const newClient: ClientWithExtras = {
         _id: (data as any)._id || (data as any).id,
@@ -143,12 +167,12 @@ const ClientsManagement = () => {
         email: (data as any).email || '',
         contact: (data as any).contact || '',
         phone: (data as any).phone || '',
-        dossierNumber: (data as any).dossierNumber || '',
-        collaboratorId: (data as any).collaboratorId || '',
+        dossierNumber: (data as any).dossier_number || (data as any).dossierNumber || '',
+        collaboratorId: (data as any).collaborator_id || (data as any).collaboratorId || '',
         documents: (data as any).documents || [],
-        isActive: (data as any).isActive ?? true,
-        createdAt: (data as any).createdAt ? new Date((data as any).createdAt) : new Date(),
-        updatedAt: (data as any).updatedAt ? new Date((data as any).updatedAt) : new Date(),
+        isActive: ((data as any).is_active ?? (data as any).isActive) ?? true,
+        createdAt: (data as any).created_at ? new Date((data as any).created_at) : ((data as any).createdAt ? new Date((data as any).createdAt) : new Date()),
+        updatedAt: (data as any).updated_at ? new Date((data as any).updated_at) : ((data as any).updatedAt ? new Date((data as any).updatedAt) : new Date()),
       };
 
       setClients(prev => [newClient, ...prev]);
@@ -401,11 +425,65 @@ const ClientsManagement = () => {
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
               <div className="mt-3">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Modifier le client</h3>
-                <form className="space-y-4">
+                <form
+                  className="space-y-4"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget as HTMLFormElement);
+                    const payload: any = { id: selectedClient._id };
+                    const name = (formData.get('name') as string) || '';
+                    const contact = (formData.get('contact') as string) || '';
+                    const email = (formData.get('email') as string) || '';
+                    const phone = (formData.get('phone') as string) || '';
+                    const dossierNumber = (formData.get('dossierNumber') as string) || '';
+                    const status = (formData.get('status') as string) || '';
+                    if (name && name !== selectedClient.name) payload.name = name;
+                    if (contact && contact !== selectedClient.contact) payload.contact = contact;
+                    if (email && email !== selectedClient.email) payload.email = email;
+                    if (phone && phone !== selectedClient.phone) payload.phone = phone;
+                    if (dossierNumber && dossierNumber !== selectedClient.dossierNumber) payload.dossierNumber = dossierNumber;
+                    if (status && status !== (selectedClient.status || (selectedClient.isActive ? 'Actif' : 'Inactif'))) payload.status = status;
+                    try {
+                      setError(null);
+                      const res = await fetch('/api/clients', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                      });
+                      const text = await res.text();
+                      if (!res.ok) {
+                        let msg = text; try { const j = JSON.parse(text); msg = j?.error || msg; } catch {}
+                        throw new Error(msg);
+                      }
+                      const body = JSON.parse(text);
+            const updated = body?.client;
+                      if (updated) {
+                        setClients(prev => prev.map(c => c._id === selectedClient._id ? {
+                          ...c,
+                          name: updated.name || c.name,
+                          email: updated.email || c.email,
+                          contact: updated.contact || c.contact,
+                          phone: updated.phone || c.phone,
+              dossierNumber: updated.dossierNumber ?? updated.dossier_number ?? c.dossierNumber,
+              collaboratorId: updated.collaboratorId ?? updated.collaborator_id ?? c.collaboratorId,
+              isActive: (updated.isActive ?? updated.is_active) ?? c.isActive,
+              updatedAt: updated.updatedAt ? new Date(updated.updatedAt) : (updated.updated_at ? new Date(updated.updated_at) : c.updatedAt),
+                          status: updated.status ?? c.status,
+                        } : c));
+                        setShowEditModal(false);
+                        setSelectedClient(null);
+                      }
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : 'Mise à jour impossible';
+                      setError(msg);
+                    }
+                  }}
+                >
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Nom de l&apos;entreprise</label>
                     <input
                       type="text"
+                      name="name"
                       defaultValue={selectedClient.name}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Nom de l&apos;entreprise"
@@ -415,6 +493,7 @@ const ClientsManagement = () => {
                     <label className="block text-sm font-medium text-gray-700">Contact principal</label>
                     <input
                       type="text"
+                      name="contact"
                       defaultValue={selectedClient.contact}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Nom du contact"
@@ -424,6 +503,7 @@ const ClientsManagement = () => {
                     <label className="block text-sm font-medium text-gray-700">Email</label>
                     <input
                       type="email"
+                      name="email"
                       defaultValue={selectedClient.email}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="email@exemple.fr"
@@ -433,6 +513,7 @@ const ClientsManagement = () => {
                     <label className="block text-sm font-medium text-gray-700">Téléphone</label>
                     <input
                       type="tel"
+                      name="phone"
                       defaultValue={selectedClient.phone}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="01 23 45 67 89"
@@ -442,6 +523,7 @@ const ClientsManagement = () => {
                     <label className="block text-sm font-medium text-gray-700">N°Dossier</label>
                     <input
                       type="text"
+                      name="dossierNumber"
                       defaultValue={selectedClient.dossierNumber}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="DOS-2024-001"
@@ -450,6 +532,7 @@ const ClientsManagement = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Statut</label>
                     <select
+                      name="status"
                       defaultValue={selectedClient.status}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     >
