@@ -6,7 +6,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Search, Plus, Edit, Trash2, Mail, Eye } from 'lucide-react';
 import ClientDetailsModal from '@/components/clients/ClientDetailsModal';
 import { Client } from '@/types';
-import { supabaseBrowser } from '@/lib/supabase/client';
 
 interface ClientWithExtras extends Client {
   contact?: string;
@@ -40,7 +39,10 @@ const ClientsManagement = () => {
       try {
         setLoadingClients(true);
         setError(null);
-        const res = await fetch('/api/clients');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  const res = await fetch('/api/clients', { signal: controller.signal });
+  clearTimeout(timeout);
         if (!res.ok) {
           const text = await res.text();
           throw new Error(`Erreur chargement clients: ${res.status} ${text}`);

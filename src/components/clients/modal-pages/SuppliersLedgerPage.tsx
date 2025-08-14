@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, Filter, Download, Calendar } from 'lucide-react';
 import { SupplierLedger } from '@/types/accounting';
 import type { ImportedRow as SharedImportedRow } from '@/types/accounting';
@@ -9,6 +9,7 @@ import FileImporter from '@/components/ui/FileImporter';
 import { useNotification } from '@/contexts/NotificationContextSimple';
 import { CSVSanitizer } from '@/utils/csvSanitizer';
 import { dedupBySignature, getSupplierLedgerSignature } from '@/utils/ledgerDedup';
+import { getSupplierLedgerCache, setSupplierLedgerCache, clearSupplierLedgerCache } from '@/lib/supplierLedgerCache';
 
 interface SuppliersLedgerPageProps {
   clientId: string;
@@ -21,6 +22,14 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
   const { showNotification } = useNotification();
 
   // Plus de données d’exemple: la page n’affiche que les entrées importées
+  // Charger depuis le cache mémoire comme pour les clients
+  useEffect(() => {
+    if (!clientId) return;
+    const cached = getSupplierLedgerCache(clientId);
+    if (cached && cached.length > 0) {
+      setImportedEntries(cached);
+    }
+  }, [clientId]);
   const supplierLedgerEntries: SupplierLedger[] = [];
 
   const formatCurrency = (amount: number) => {
@@ -147,6 +156,9 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
         duration: 5000,
       });
     }
+  const merged = [...importedEntries, ...unique];
+  setImportedEntries(merged);
+  try { setSupplierLedgerCache(clientId, merged); } catch {}
   };
 
   // N’afficher que les entrées importées
@@ -206,6 +218,13 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
               <button className="flex items-center space-x-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700">
                 <Download className="w-4 h-4" />
                 <span>Exporter</span>
+              </button>
+              {/* Bouton réinitialisation cache (optionnel) */}
+              <button
+                onClick={() => { setImportedEntries([]); try { clearSupplierLedgerCache(clientId); } catch {} }}
+                className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200"
+              >
+                <span>Vider</span>
               </button>
             </div>
           </div>

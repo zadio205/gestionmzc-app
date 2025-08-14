@@ -3,38 +3,103 @@ import { supabaseServer } from '@/lib/supabase';
 import { listClientsCache, addClientCache, updateClientCache, deleteClientCache, seedClientsCache } from '@/lib/clientsCache';
 import { InputValidator } from '@/utils/inputValidation';
 
+// Ensure this route runs on Node.js runtime (not Edge) and is dynamic
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/clients -> { clients: [...] }
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
+    const source = url.searchParams.get('source');
+    if (source === 'cache') {
+      const cached = listClientsCache();
+      const clients = (cached || []).map((row: any) => ({
+        _id: row._id || row.id,
+        name: row.name || '',
+        email: row.email || '',
+        contact: row.contact || '',
+        phone: row.phone || '',
+        address: row.address || '',
+        siret: row.siret || '',
+        industry: row.industry || '',
+        dossierNumber: row.dossier_number || row.dossierNumber || '',
+        collaboratorId: row.collaborator_id || row.collaboratorId || '',
+        documents: row.documents || [],
+        isActive: (row.is_active ?? row.isActive) ?? true,
+        createdAt: row.created_at || row.createdAt || null,
+        updatedAt: row.updated_at || row.updatedAt || null,
+        status: row.status,
+        lastActivity: row.last_activity || row.updated_at || row.created_at || null,
+        collaborator: row.collaborator,
+      }));
+      return NextResponse.json({ clients }, { status: 200 });
+    }
     const hasSupabase = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-    let data: any[] | null = null;
+    let data: any[] = [];
     let error: any = null;
     if (hasSupabase) {
       const supabase = supabaseServer();
-      const res = await supabase.from('clients').select('*');
-      data = res.data as any[];
-      error = res.error;
+      try {
+        const res = (await Promise.race([
+          supabase.from('clients').select('*'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+        ])) as { data: any[] | null; error: any | null };
+        data = res?.data || [];
+        error = res?.error || null;
+      } catch (e: any) {
+        // Timeout ou exception -> fallback cache
+        data = listClientsCache();
+        error = null;
+      }
       if (!error && Array.isArray(data)) {
-        // Synchroniser le cache pour un fallback transparent du PATCH/DELETE
-        seedClientsCache(data.map((row: any) => ({
-          id: row._id || row.id,
-          name: row.name || '',
-          email: row.email || '',
-          contact: row.contact || '',
-          phone: row.phone || '',
-          address: row.address || '',
-          siret: row.siret || '',
-          industry: row.industry || '',
-          dossier_number: row.dossier_number || row.dossierNumber || '',
-          collaborator_id: row.collaborator_id || row.collaboratorId || '',
-          documents: row.documents || [],
-          is_active: (row.is_active ?? row.isActive) ?? true,
-          status: row.status || null,
-          last_activity: row.last_activity || row.updated_at || row.created_at || null,
-          collaborator: row.collaborator || null,
-          created_at: row.created_at || row.createdAt || null,
-          updated_at: row.updated_at || row.updatedAt || null,
-        })));
+        // Synchroniser le cache à partir de la DB (gère colonnes FR)
+        seedClientsCache(
+          data.map((row: any) => ({
+            id: row._id || row.id || row.identifiant,
+            name: row.name || row.nom || '',
+            email: row.email || row['e-mail'] || '',
+            contact: row.contact || '',
+            phone: row.phone || row['téléphone'] || '',
+            address: row.address || row.adresse || '',
+            siret: row.siret || '',
+            industry: row.industry || row['industrie'] || '',
+            dossier_number: row.dossier_number || row.dossierNumber || row['numéro_de_dossier'] || '',
+            collaborator_id: row.collaborator_id || row['collaborateur_id'] || '',
+            documents: row.documents || [],
+            is_active: (row.is_active ?? row.isActive ?? row['est_actif']) ?? true,
+            status: row.status || null,
+            last_activity:
+              row.last_activity ||
+              row.updated_at ||
+              row.created_at ||
+              row['mis à jour à'] ||
+              row['créé_à'] ||
+              null,
+            collaborator: row.collaborator || null,
+            created_at: row.created_at || row['créé_à'] || row.createdAt || null,
+            updated_at: row.updated_at || row['mis à jour à'] || row.updatedAt || null,
+          }))
+        );
+      }
+      // Si erreur DB, on se replie sur le cache
+      if (error) {
+        data = listClientsCache();
+        error = null;
+      } else {
+        // Fusionner DB + cache (pour inclure des ajouts locaux non encore persistés)
+        const cached = listClientsCache();
+        const byId = new Map<string, any>();
+        for (const r of (Array.isArray(data) ? data : [])) {
+          const id = (r as any)._id || (r as any).id;
+          if (id) byId.set(String(id), r);
+        }
+        for (const r of cached) {
+          const id = r.id;
+          if (id && !byId.has(String(id))) byId.set(String(id), r);
+        }
+        data = Array.from(byId.values());
       }
     } else {
       data = listClientsCache();
@@ -45,6 +110,39 @@ export async function GET() {
     }
 
     const clients = (data || []).map((row: any) => ({
+      _id: row._id || row.id || row.identifiant,
+      name: row.name || row.nom || '',
+      email: row.email || row['e-mail'] || '',
+      contact: row.contact || '',
+      phone: row.phone || row['téléphone'] || '',
+      address: row.address || row.adresse || '',
+      siret: row.siret || '',
+      industry: row.industry || row['industrie'] || '',
+      dossierNumber: row.dossier_number || row.dossierNumber || row['numéro_de_dossier'] || '',
+      collaboratorId: row.collaborator_id || row['collaborateur_id'] || '',
+      documents: row.documents || [],
+      isActive: (row.is_active ?? row.isActive ?? row['est_actif']) ?? true,
+      createdAt: row.created_at || row['créé_à'] || row.createdAt || null,
+      updatedAt: row.updated_at || row['mis à jour à'] || row.updatedAt || null,
+      status: row.status,
+      lastActivity:
+        row.last_activity ||
+        row.updated_at ||
+        row.created_at ||
+        row['mis à jour à'] ||
+        row['créé_à'] ||
+        row.lastActivity ||
+        row.updatedAt ||
+        row.createdAt ||
+        null,
+      collaborator: row.collaborator,
+    }));
+
+    return NextResponse.json({ clients }, { status: 200 });
+  } catch (e: any) {
+    // Dernier repli: renvoyer le cache (ou liste vide) pour ne pas casser l'UI
+    const cached = listClientsCache();
+    const clients = (cached || []).map((row: any) => ({
       _id: row._id || row.id,
       name: row.name || '',
       email: row.email || '',
@@ -60,13 +158,10 @@ export async function GET() {
       createdAt: row.created_at || row.createdAt || null,
       updatedAt: row.updated_at || row.updatedAt || null,
       status: row.status,
-      lastActivity: row.last_activity || row.updated_at || row.created_at || row.lastActivity || row.updatedAt || row.createdAt || null,
+      lastActivity: row.last_activity || row.updated_at || row.created_at || null,
       collaborator: row.collaborator,
     }));
-
     return NextResponse.json({ clients }, { status: 200 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Erreur serveur' }, { status: 500 });
   }
 }
 
@@ -101,10 +196,32 @@ export async function POST(request: Request) {
     let error: any = null;
     if (hasSupabase) {
       const supabase = supabaseServer();
-      const res = await supabase.from('clients').insert(payload).select('*').single();
+      // Tentative 1: schéma snake_case
+      let res = await supabase.from('clients').insert(payload).select('*').single();
       data = res.data;
       error = res.error;
-      // Fallback silencieux vers cache si Supabase échoue
+      if (error) {
+        // Tentative 2: schéma colonnes FR
+        const payloadFr: any = {
+          identifiant: crypto.randomUUID(),
+          nom: name,
+          'e-mail': email,
+          contact: payload.contact,
+          'téléphone': payload.phone,
+          adresse: null,
+          siret: null,
+          industrie: null,
+          'numéro_de_dossier': payload.dossier_number,
+          collaborateur_id: payload.collaborator_id,
+          est_actif: true,
+          'créé_à': new Date().toISOString(),
+          'mis à jour à': new Date().toISOString(),
+        };
+        const resFr = await supabase.from('clients').insert(payloadFr).select('*').single();
+        data = resFr.data;
+        error = resFr.error;
+      }
+      // Fallback silencieux vers cache si Supabase échoue encore
       if (error) {
         data = addClientCache({
           id: crypto.randomUUID(),
@@ -144,17 +261,29 @@ export async function POST(request: Request) {
     }
 
     const client = {
-      _id: (data as any)._id || (data as any).id,
-      name: (data as any).name,
-      email: (data as any).email,
+      _id: (data as any)._id || (data as any).id || (data as any)?.identifiant,
+      name: (data as any).name || (data as any)?.nom,
+      email: (data as any).email || (data as any)?.['e-mail'],
       contact: (data as any).contact || '',
-      phone: (data as any).phone || '',
-      dossierNumber: (data as any).dossier_number || (data as any).dossierNumber || '',
-      collaboratorId: (data as any).collaborator_id || (data as any).collaboratorId || '',
+      phone: (data as any).phone || (data as any)?.['téléphone'] || '',
+      dossierNumber:
+        (data as any).dossier_number ||
+        (data as any).dossierNumber ||
+        (data as any)?.['numéro_de_dossier'] ||
+        '',
+      collaboratorId: (data as any).collaborator_id || (data as any)?.['collaborateur_id'] || '',
       documents: (data as any).documents || [],
-      isActive: ((data as any).is_active ?? (data as any).isActive) ?? true,
-      createdAt: (data as any).created_at || (data as any).createdAt || null,
-      updatedAt: (data as any).updated_at || (data as any).updatedAt || null,
+      isActive: ((data as any).is_active ?? (data as any).isActive ?? (data as any)?.['est_actif']) ?? true,
+      createdAt:
+        (data as any).created_at ||
+        (data as any)?.['créé_à'] ||
+        (data as any).createdAt ||
+        null,
+      updatedAt:
+        (data as any).updated_at ||
+        (data as any)?.['mis à jour à'] ||
+        (data as any).updatedAt ||
+        null,
     };
 
     return NextResponse.json({ client }, { status: 201 });

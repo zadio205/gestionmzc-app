@@ -8,7 +8,12 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.warn('Supabase env vars are missing: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
 }
 
-export const supabaseServer = () =>
-  createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+export const supabaseServer = () => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Supabase server env not configured');
+  }
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
+    global: { headers: { 'x-client-info': 'gestionmzc-api' } },
   });
+};

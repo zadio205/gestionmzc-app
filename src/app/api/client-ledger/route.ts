@@ -4,6 +4,10 @@ import { getLedgerCache, setLedgerCache, clearLedgerCache } from '@/lib/ledgerCa
 import { getClientLedgerSignature, dedupBySignature } from '@/utils/ledgerDedup';
 import { supabaseServer } from '@/lib/supabase';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 type LedgerEntryInput = {
 	date: Date | string | null;
 	accountNumber: string;
@@ -29,10 +33,11 @@ type LedgerEntryInput = {
 
 export async function GET(request: Request) {
 	const url = new URL(request.url);
-	const clientId = url.searchParams.get('clientId') || '';
-	if (!clientId) {
-		return NextResponse.json({ error: 'clientId requis' }, { status: 400 });
-	}
+		const clientId = url.searchParams.get('clientId') || '';
+		if (!clientId) {
+			// Renvoyer liste vide pour ne pas faire planter l'UI
+			return NextResponse.json({ entries: [] }, { status: 200 });
+		}
 
 	// 1) Tenter lecture depuis Supabase (source persistante)
 	try {
@@ -75,10 +80,10 @@ export async function GET(request: Request) {
 		// Met à jour le cache mémoire pour des accès rapides
 		setLedgerCache(clientId, mapped);
 		return NextResponse.json({ entries: mapped }, { status: 200 });
-	} catch (_e) {
-		// 2) Repli sur cache mémoire (session)
-		const cached = getLedgerCache(clientId) || [];
-		return NextResponse.json({ entries: cached }, { status: 200 });
+		} catch (_e) {
+			// 2) Repli sur cache mémoire (session)
+			const cached = getLedgerCache(clientId) || [];
+			return NextResponse.json({ entries: cached }, { status: 200 });
 	}
 }
 

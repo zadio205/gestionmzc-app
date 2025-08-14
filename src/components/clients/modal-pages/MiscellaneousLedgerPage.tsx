@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Search, Filter, Download, Calendar } from "lucide-react";
 import { MiscellaneousLedger } from "@/types/accounting";
 import type { ImportedRow as SharedImportedRow } from "@/types/accounting";
@@ -9,6 +9,7 @@ import FileImporter from "@/components/ui/FileImporter";
 import { useNotification } from "@/contexts/NotificationContextSimple";
 import { CSVSanitizer } from "@/utils/csvSanitizer";
 import { dedupBySignature, getMiscLedgerSignature } from "@/utils/ledgerDedup";
+import { getMiscLedgerCache, setMiscLedgerCache, clearMiscLedgerCache } from "@/lib/miscLedgerCache";
 
 interface MiscellaneousLedgerPageProps {
   clientId: string;
@@ -19,6 +20,15 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
   const [selectedPeriod, setSelectedPeriod] = useState("2024-01");
   const [importedEntries, setImportedEntries] = useState<MiscellaneousLedger[]>([]);
   const { showNotification } = useNotification();
+
+  // Charger depuis cache mémoire si présent
+  useEffect(() => {
+    if (!clientId) return;
+    const cached = getMiscLedgerCache(clientId);
+    if (cached && cached.length > 0) {
+      setImportedEntries(cached);
+    }
+  }, [clientId]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("fr-FR", {
@@ -107,7 +117,7 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
     );
 
     // Enrichissement IA
-    let enriched = newEntries;
+  let enriched = newEntries;
     try {
       enriched = await enrichEntriesAI(newEntries);
     } catch (e) {
@@ -118,7 +128,9 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
   const { unique } = dedupBySignature(enriched, getMiscLedgerSignature, existingSigs);
   const addedCount = unique.length;
   const duplicateCount = enriched.length - addedCount;
-  setImportedEntries([...importedEntries, ...unique]);
+  const merged = [...importedEntries, ...unique];
+  setImportedEntries(merged);
+  try { setMiscLedgerCache(clientId, merged); } catch {}
 
     if (addedCount > 0) {
       showNotification({
@@ -178,6 +190,12 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
               <button className="flex items-center space-x-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700">
                 <Download className="w-4 h-4" />
                 <span>Exporter</span>
+              </button>
+              <button
+                onClick={() => { setImportedEntries([]); try { clearMiscLedgerCache(clientId); } catch {} }}
+                className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200"
+              >
+                <span>Vider</span>
               </button>
             </div>
           </div>
