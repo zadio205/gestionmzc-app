@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Search, Filter, Download, Calendar } from "lucide-react";
+import { Search, Download, Calendar } from "lucide-react";
 import { MiscellaneousLedger } from "@/types/accounting";
 import type { ImportedRow as SharedImportedRow } from "@/types/accounting";
 import { enrichEntriesAI } from "@/services/aiAdapter";
@@ -221,42 +221,23 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Date</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Nom Client</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">N° Compte</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Libellé</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Référence</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Débit</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Crédit</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Solde</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Catégorie</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Statut</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredEntries.map((entry) => (
-                <tr key={entry._id} className={(entry as any).importIndex !== undefined ? "bg-orange-50" : undefined}>
+                <tr key={entry._id} className={entry.importIndex !== undefined ? "bg-orange-50" : undefined}>
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">{entry.date ? formatDate(entry.date) : ''}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-48"></td>
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">{entry.accountNumber || ""}</td>
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{entry.accountName || ""}</td>
-                  <td className="px-3 py-2 text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
-                      <span>{entry.description || ""}</span>
-                      {entry.aiMeta && (
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                            entry.aiMeta.suspiciousLevel === 'high'
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : entry.aiMeta.suspiciousLevel === 'medium'
-                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                              : 'bg-green-50 text-green-700 border-green-200'
-                          }`}
-                          title={`Analyse IA: ${entry.aiMeta.suspiciousLevel}\n- ${(entry.aiMeta.reasons || []).join('\n- ')}`}
-                        >
-                          IA {entry.aiMeta.suspiciousLevel}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">{entry.reference || ""}</td>
                   {(() => {
                     const isAmountEmpty = ((entry.debit || 0) === 0) && ((entry.credit || 0) === 0);
                     return (
@@ -266,10 +247,16 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
                         <td className={`px-3 py-2 whitespace-nowrap text-sm text-right font-medium tabular-nums w-28 ${entry.balance < 0 ? "text-red-600" : entry.balance > 0 ? "text-green-600" : "text-gray-900"}`}>
                           {isAmountEmpty ? "" : formatCurrency(Math.abs(entry.balance))}
                         </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">
+                          {/* Statut placeholder based on balance */}
+                          {entry.balance < 0 ? 'À payer' : 'OK'}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-24">
+                          <button className="text-blue-600 hover:underline text-xs">Détails</button>
+                        </td>
                       </>
                     );
                   })()}
-                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{entry.category || ""}</td>
                 </tr>
               ))}
             </tbody>

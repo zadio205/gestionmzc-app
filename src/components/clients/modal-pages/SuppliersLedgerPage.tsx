@@ -296,37 +296,23 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
-                          Date
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Description
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                          Référence
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">
-                          Débit
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">
-                          Crédit
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">
-                          Solde
-                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Date</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Nom Client</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">N° Compte</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Libellé</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Débit</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Crédit</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Solde</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Statut</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {entries.map((entry) => (
-                        <tr key={entry._id} className={`hover:bg-gray-50 ${(entry as any).importIndex !== undefined ? 'bg-orange-50' : ''}`}>
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">
-                            {entry.date ? formatDate(entry.date) : ''}
-                            {(entry as any).importIndex !== undefined && (
-                              <span className="ml-2 text-xs text-orange-600 font-medium">
-                                (#{((entry as any).importIndex + 1)})
-                              </span>
-                            )}
-                          </td>
+                        <tr key={entry._id} className={`hover:bg-gray-50 ${entry.importIndex !== undefined ? 'bg-orange-50' : ''}`}>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">{entry.date ? formatDate(entry.date) : ''}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-48"></td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">{entry.accountNumber || ''}</td>
                           <td className="px-3 py-2 text-sm text-gray-900">
                             <div className="flex items-center gap-2">
                               <span>{entry.description || ''}</span>
@@ -345,9 +331,6 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                                 </span>
                               )}
                             </div>
-                          </td>
-          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">
-                            {entry.reference}
                           </td>
                           {(() => {
                             const isAmountEmpty = ((entry.debit || 0) === 0) && ((entry.credit || 0) === 0);
@@ -368,6 +351,14 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                                       {entry.balance < 0 && ' (Dû)'}
                                     </>
                                   )}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">
+                                  {/* Statut placeholder, peut être alimenté par entry.status si disponible */}
+                                  {entry.balance < 0 ? 'À payer' : 'OK'}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-24">
+                                  {/* Actions placeholder */}
+                                  <button className="text-blue-600 hover:underline text-xs">Détails</button>
                                 </td>
                               </>
                             );
