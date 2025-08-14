@@ -29,14 +29,27 @@ export const useClientLedgerState = (clientId: string) => {
   ), [importedEntries]);
 
   const filteredEntries = useMemo(() => {
-    if (!searchTerm.trim()) return allEntries;
+    // Comparateur: tri par N° Compte (accountNumber) ascendant puis par date croissante
+    const compareByAccountNumber = (a: ClientLedger, b: ClientLedger) => {
+      const an = (a.accountNumber || '').toString();
+      const bn = (b.accountNumber || '').toString();
+      const cmp = an.localeCompare(bn, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+      const ad = a.date ? new Date(a.date).getTime() : 0;
+      const bd = b.date ? new Date(b.date).getTime() : 0;
+      return ad - bd;
+    };
+
+    if (!searchTerm.trim()) return [...allEntries].sort(compareByAccountNumber);
     
     const term = searchTerm.toLowerCase();
-    return allEntries.filter(entry =>
-      (entry.clientName || '').toLowerCase().includes(term) ||
-      (entry.description || '').toLowerCase().includes(term) ||
-      (entry.reference || '').toLowerCase().includes(term)
-    );
+    return allEntries
+      .filter(entry =>
+        (entry.clientName || '').toLowerCase().includes(term) ||
+        (entry.description || '').toLowerCase().includes(term) ||
+        (entry.reference || '').toLowerCase().includes(term)
+      )
+      .sort(compareByAccountNumber);
   }, [allEntries, searchTerm]);
 
   const summary: LedgerSummary = useMemo(() => {

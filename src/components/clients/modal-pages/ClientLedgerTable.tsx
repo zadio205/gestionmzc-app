@@ -12,6 +12,7 @@ interface ClientLedgerTableProps {
   getEntryStatus: (entry: ClientLedger) => EntryStatus;
   formatCurrency: (amount: number) => string;
   formatDate: (date: Date) => string;
+  onViewDetails?: (entry: ClientLedger) => void;
 }
 
 const ClientLedgerTable: React.FC<ClientLedgerTableProps> = ({
@@ -22,7 +23,8 @@ const ClientLedgerTable: React.FC<ClientLedgerTableProps> = ({
   onRequestJustification,
   getEntryStatus,
   formatCurrency,
-  formatDate
+  formatDate,
+  onViewDetails
 }) => {
 
   return (
@@ -222,6 +224,7 @@ const ClientLedgerTable: React.FC<ClientLedgerTableProps> = ({
                         </button>
                       )}
                       <button
+                        onClick={() => onViewDetails && onViewDetails(entry)}
                         className="text-gray-600 hover:text-gray-800 p-1 rounded"
                         title="Voir détails"
                       >

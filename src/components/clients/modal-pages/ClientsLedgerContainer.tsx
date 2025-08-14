@@ -6,6 +6,7 @@ import AnalysisPanel from "../AnalysisPanel";
 import ClientLedgerTable from "./ClientLedgerTable";
 import JustificationRequestsPanel from "./JustificationRequestsPanel";
 import UploadJustificatifModal from "./UploadJustificatifModal";
+import EntryDetailsModal from "@/components/clients/modal-pages/EntryDetailsModal";
 import { SearchBar } from "./SearchBar";
 import { useClientLedgerState } from "@/hooks/useClientLedgerState";
 import { useJustificationRequests } from "@/hooks/useJustificationRequests";
@@ -64,6 +65,8 @@ export const ClientsLedgerContainer: React.FC<ClientsLedgerContainerProps> = ({
   // Upload justificatif modal handling
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadContext, setUploadContext] = useState<{ entryId: string; clientId: string } | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [detailsEntryId, setDetailsEntryId] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -169,6 +172,7 @@ export const ClientsLedgerContainer: React.FC<ClientsLedgerContainerProps> = ({
             getEntryStatus={getEntryStatus}
             formatCurrency={ClientLedgerService.formatCurrency}
             formatDate={ClientLedgerService.formatDate}
+            onViewDetails={(entry) => { setDetailsEntryId(entry._id); setDetailsModalOpen(true); }}
           />
         </div>
 
@@ -202,6 +206,16 @@ export const ClientsLedgerContainer: React.FC<ClientsLedgerContainerProps> = ({
             onUploaded={() => {
               ledgerState.markEntryAsJustified(uploadContext.entryId);
             }}
+          />
+        )}
+
+        {detailsModalOpen && detailsEntryId && (
+          <EntryDetailsModal
+            isOpen={detailsModalOpen}
+            onClose={() => setDetailsModalOpen(false)}
+            entry={ledgerState.entries.find(e => e._id === detailsEntryId)!}
+            formatCurrency={ClientLedgerService.formatCurrency}
+            formatDate={ClientLedgerService.formatDate}
           />
         )}
       </div>
