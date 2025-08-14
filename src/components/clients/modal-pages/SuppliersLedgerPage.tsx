@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Search, Filter, Download, Calendar } from 'lucide-react';
+import { Search, Filter, Download, Calendar, Mail, Upload, Eye, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 import { SupplierLedger } from '@/types/accounting';
 import type { ImportedRow as SharedImportedRow } from '@/types/accounting';
 import { enrichEntriesAI } from '@/services/aiAdapter';
 import FileImporter from '@/components/ui/FileImporter';
+import UploadJustificatifModal from './UploadJustificatifModal';
 import { useNotification } from '@/contexts/NotificationContextSimple';
 import { CSVSanitizer } from '@/utils/csvSanitizer';
 import { dedupBySignature, getSupplierLedgerSignature } from '@/utils/ledgerDedup';
@@ -20,6 +21,8 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
   const [selectedPeriod, setSelectedPeriod] = useState('2024-01');
   const [importedEntries, setImportedEntries] = useState<SupplierLedger[]>([]);
   const { showNotification } = useNotification();
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadContext, setUploadContext] = useState<{ entryId: string; clientId: string } | null>(null);
 
   // Plus de données d’exemple: la page n’affiche que les entrées importées
   // Charger depuis le cache mémoire comme pour les clients
@@ -183,6 +186,17 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
     return acc;
   }, {} as Record<string, SupplierLedger[]>);
 
+  // La règle fournisseurs : règlements en Débit, factures en Crédit
+  // Le calcul détaillé par fournisseur se fait dans le rendu (accès aux totaux du groupe)
+
+  const generateJustificationMessage = (entry: SupplierLedger) => {
+    const isPayment = (entry.debit || 0) > 0; // Fournisseurs: débit = règlement
+    const amount = isPayment ? entry.debit : entry.credit;
+    const header = isPayment ? 'règlement' : 'facture';
+    const dateStr = entry.date ? formatDate(entry.date) : '';
+    return `Bonjour,%0D%0A%0D%0ANous avons identifié un ${header} de ${formatCurrency(amount || 0)}${dateStr ? ` en date du ${dateStr}` : ''} (référence: ${entry.reference || 'non spécifiée'}).%0D%0A%0D%0APourriez-vous nous fournir les justificatifs correspondants ?%0D%0A%0D%0ADescription : ${entry.description || ''}%0D%0A%0D%0AMerci de votre collaboration.%0D%0A%0D%0ACordialement,%0D%0AL'équipe comptable`;
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header avec filtres */}
@@ -274,6 +288,24 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
             const supplierCredit = entries.reduce((sum, entry) => sum + entry.credit, 0);
             const supplierBalance = supplierDebit - supplierCredit;
 
+            // Règles statut fournisseurs:
+            // - Débit (règlement): justificatif manquant si pas de référence
+            // - Crédit (facture): facture non réglée si crédits > débits
+            // - Sinon: IA peut marquer "écriture suspecte", sinon conforme
+            const getEntryStatus = (entry: SupplierLedger) => {
+              const hasRef = !!(entry.reference && entry.reference.trim().length > 0);
+              if ((entry.debit || 0) > 0 && !hasRef) {
+                return { type: 'error' as const, label: 'Justificatif manquant', icon: XCircle };
+              }
+              if ((entry.credit || 0) > 0 && supplierCredit > supplierDebit) {
+                return { type: 'warning' as const, label: 'Facture non réglée', icon: AlertTriangle };
+              }
+              if (entry.aiMeta && (entry.aiMeta.suspiciousLevel === 'medium' || entry.aiMeta.suspiciousLevel === 'high')) {
+                return { type: 'warning' as const, label: 'Écriture suspecte', icon: AlertTriangle };
+              }
+              return { type: 'success' as const, label: 'Conforme', icon: CheckCircle };
+            };
+
             return (
               <div key={supplierName} className="bg-white rounded-lg shadow overflow-hidden">
                 <div className="bg-orange-50 px-6 py-4 border-b border-gray-200">
@@ -352,13 +384,50 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                                     </>
                                   )}
                                 </td>
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">
-                                  {/* Statut placeholder, peut être alimenté par entry.status si disponible */}
-                                  {entry.balance < 0 ? 'À payer' : 'OK'}
+                                <td className="px-3 py-2 whitespace-nowrap w-40">
+                                  {!isAmountEmpty && (() => {
+                                    const status = getEntryStatus(entry);
+                                    const Icon = status.icon;
+                                    return (
+                                      <div className="flex items-center space-x-2">
+                                        <Icon className={`w-4 h-4 ${status.type === 'success' ? 'text-green-500' : status.type === 'warning' ? 'text-yellow-500' : 'text-red-500'}`} />
+                                        <span className={`text-xs px-2 py-1 rounded-full ${status.type === 'success' ? 'bg-green-100 text-green-800' : status.type === 'warning' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{status.label}</span>
+                                      </div>
+                                    );
+                                  })()}
                                 </td>
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-24">
-                                  {/* Actions placeholder */}
-                                  <button className="text-blue-600 hover:underline text-xs">Détails</button>
+                                <td className="px-3 py-2 whitespace-nowrap text-center w-28">
+                                  {!isAmountEmpty && (() => {
+                                    const status = getEntryStatus(entry);
+                                    return (
+                                      <div className="flex items-center justify-center space-x-2">
+                                        {status.label === 'Justificatif manquant' && (
+                                          <a
+                                            href={`mailto:?subject=Demande%20de%20justificatif&body=${generateJustificationMessage(entry)}`}
+                                            className="text-amber-600 hover:text-amber-800 p-1 rounded"
+                                            title="Demander justificatif"
+                                          >
+                                            <Mail className="w-4 h-4" />
+                                          </a>
+                                        )}
+                                        {status.label === 'Justificatif manquant' && (
+                                          <button
+                                            onClick={() => { setUploadContext({ entryId: entry._id, clientId: entry.clientId }); setUploadModalOpen(true); }}
+                                            className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                                            title="Ajouter justificatif"
+                                          >
+                                            <Upload className="w-4 h-4" />
+                                          </button>
+                                        )}
+                                        <button
+                                          className="text-gray-600 hover:text-gray-800 p-1 rounded"
+                                          title="Voir détails"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })()}
                                 </td>
                               </>
                             );
@@ -388,6 +457,15 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
           )}
         </div>
       </div>
+      {uploadModalOpen && uploadContext && (
+        <UploadJustificatifModal
+          isOpen={uploadModalOpen}
+          onClose={() => setUploadModalOpen(false)}
+          clientId={uploadContext.clientId}
+          entryId={uploadContext.entryId}
+          onUploaded={() => { /* TODO: marquer l’entrée comme justifiée si un champ existe */ }}
+        />
+      )}
     </div>
   );
 };
