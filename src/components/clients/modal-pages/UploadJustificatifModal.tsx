@@ -29,14 +29,17 @@ const UploadJustificatifModal: React.FC<UploadJustificatifModalProps> = ({ isOpe
       return;
     }
 
-    const form = new FormData();
-    form.append('file', file);
-    form.append('clientId', clientId);
-    form.append('entryId', entryId);
+  const form = new FormData();
+  form.append('file', file);
+  form.append('clientId', clientId);
+  form.append('entryId', entryId);
+  // Dossier de destination dans le bucket Supabase
+  form.append('folder', `clients/${clientId}/ledger/${entryId}`);
 
     try {
       setLoading(true);
-      const res = await fetch('/api/documents/upload', {
+      // Utiliser le nouvel endpoint App Router (migration Supabase)
+      const res = await fetch('/api/upload', {
         method: 'POST',
         headers: {
           'x-user-id': user._id,
@@ -48,8 +51,25 @@ const UploadJustificatifModal: React.FC<UploadJustificatifModalProps> = ({ isOpe
         throw new Error(data.error || 'Erreur upload');
       }
       const data = await res.json();
-      onUploaded(data.document);
-      const url: string | undefined = data?.document?.url;
+      // L'API /api/upload renvoie { path, url }
+      const url: string | undefined = data?.url;
+      // Construire un objet document minimal pour l'appelant
+      const doc = {
+        name: file.name,
+        originalName: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        path: data?.path,
+        url,
+        provider: 'supabase',
+        clientId,
+        uploadedBy: user._id,
+        mimeType: file.type || 'application/octet-stream',
+        status: 'pending' as const,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      onUploaded(doc);
       if (url) {
         // Essayer d'ouvrir dans un nouvel onglet (après action utilisateur)
         try { window.open(url, '_blank', 'noopener,noreferrer'); } catch {}
