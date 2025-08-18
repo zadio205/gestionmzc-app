@@ -205,21 +205,11 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
             onUploaded={() => { /* TODO: marquer l’entrée comme justifiée si un champ existe */ }}
           />
         )}
-            <p className="text-sm text-gray-600">Écritures diverses</p>
+          
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="text-sm border border-gray-300 rounded-md px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="2024-01">Janvier 2024</option>
-                <option value="2023-12">Décembre 2023</option>
-              </select>
-            </div>
+            
 
             <div className="flex items-center space-x-2">
               <FileImporter
@@ -233,12 +223,7 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
                 <Download className="w-4 h-4" />
                 <span>Exporter</span>
               </button>
-              <button
-                onClick={() => { setImportedEntries([]); try { clearMiscLedgerCache(clientId); } catch {} }}
-                className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200"
-              >
-                <span>Vider</span>
-              </button>
+              
             </div>
           </div>
         </div>

@@ -5,8 +5,9 @@ import { TrendingUp, TrendingDown, BarChart3, PieChart } from "lucide-react";
 import { BalanceItem, BalanceIndicator } from "@/types/accounting";
 import FileImporter from "@/components/ui/FileImporter";
 import { useNotification } from "@/contexts/NotificationContextSimple";
-import { listBalance, saveBalance, clearBalance } from "@/services/balanceApi";
-import { getBalanceLocalCache, setBalanceLocalCache, clearBalanceLocalCache, getLastUsedPeriod, setLastUsedPeriod } from "@/lib/balanceLocalCache";
+import { getLastUsedPeriod, setLastUsedPeriod } from "@/lib/balanceRealCache";
+import { useBalancePersistence } from "@/hooks/useBalancePersistence";
+import { testBalancePersistence } from "@/utils/testBalancePersistence";
 
 interface BalancePageProps {
   clientId: string;
@@ -16,10 +17,22 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
   const [activeSubPage, setActiveSubPage] = useState<"balance" | "indicators">(
     "balance"
   );
-  const [importedItems, setImportedItems] = useState<BalanceItem[]>([]);
   const { showNotification } = useNotification();
-  const [loading, setLoading] = useState(false);
   const [period, setPeriod] = useState<string>("2024-01");
+
+  // Utiliser le hook de persistance pour la gestion des données
+  const { 
+    items: importedItems, 
+    loading, 
+    lastSyncTime,
+    saveData, 
+    clearData, 
+    reloadData 
+  } = useBalancePersistence({
+    clientId,
+    period,
+    onNotification: showNotification,
+  });
 
   // Au montage, essayer de restaurer la dernière période utilisée pour ce client
   useEffect(() => {
@@ -43,38 +56,6 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
     window.addEventListener('close-all-modals', closeAll as any);
     return () => window.removeEventListener('close-all-modals', closeAll as any);
   }, []);
-
-  // Charger la balance persistée au montage
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        // 1) Essayer cache Supabase (évite flicker et couvre le offline)
-        const local = await getBalanceLocalCache(clientId, period);
-        if (mounted && local && local.length > 0) {
-          setImportedItems(local);
-        }
-        // 2) Puis interroger l'API (écrase avec la source serveur si dispo)
-        const { items } = await listBalance(clientId, period);
-        if (!mounted) return;
-        const safeItems = items || [];
-        setImportedItems(safeItems);
-        await setBalanceLocalCache(clientId, period, safeItems);
-        // Persister la période utilisée si on a des données
-        if (safeItems.length > 0) await setLastUsedPeriod(clientId, period);
-      } catch (e) {
-        // fallback: si pas de base, garder uniquement le cache Supabase
-        const localOnly = await getBalanceLocalCache(clientId, period);
-        if (mounted && localOnly) setImportedItems(localOnly);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [clientId, period]);
 
   // Debug useEffect pour surveiller les changements d'état
   useEffect(() => {
@@ -389,56 +370,14 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
     console.log("🎉 Éléments traités finaux:", newItems);
     console.log("🎉 Nombre d'éléments à ajouter:", newItems.length);
 
-  setImportedItems(newItems);
-  // Mettre à jour cache Supabase immédiatement
-  (async () => {
-    try {
-      await setBalanceLocalCache(clientId, period, newItems);
-      await setLastUsedPeriod(clientId, period);
-    } catch (error) {
-      console.warn('Erreur lors de la mise à jour du cache:', error);
-    }
-  })();
+    // Utiliser le hook pour sauvegarder les données
+    await saveData(newItems);
 
-    // Persister en base pour ne pas perdre au changement de page
-    try {
-      await saveBalance(newItems.map(i => ({
-        accountNumber: i.accountNumber,
-        accountName: i.accountName,
-        debit: i.debit,
-        credit: i.credit,
-        balance: i.balance,
-        clientId: i.clientId,
-        period: i.period,
-        importIndex: i.importIndex,
-        originalDebit: (i as any).originalDebit,
-        originalCredit: (i as any).originalCredit,
-      })));
-      // Après sauvegarde serveur, on s'aligne côté cache Supabase
-      await setBalanceLocalCache(clientId, period, newItems);
-      await setLastUsedPeriod(clientId, period);
-    } catch (e: any) {
-      showNotification({
-        type: "warning",
-        title: "Sauvegarde locale uniquement",
-        message: `Impossible d'enregistrer en base pour le moment: ${e?.message || ''}`,
-        duration: 4000,
-      });
-    }
-
-    // Afficher un message de succès
+    // Afficher un message de succès si des éléments ont été traités
     if (newItems.length > 0) {
       console.log(`✅ ${newItems.length} éléments importés avec succès`);
-      showNotification({
-        type: "success",
-        title: "Importation réussie",
-        message: `${newItems.length} élément${
-          newItems.length > 1 ? "s" : ""
-        } de balance importé${
-          newItems.length > 1 ? "s" : ""
-        } avec succès. Les données importées sont marquées avec un index de ligne.`,
-        duration: 5000,
-      });
+      // Le message de succès sera affiché par le hook
+      
       // Forcer un re-render en loggant l'état
       setTimeout(() => {
         console.log("🔄 État après import:", newItems);
@@ -482,11 +421,12 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
 
   const renderBalanceTable = () => (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
             Balance générale
           </h3>
+         
         </div>
         <div className="flex items-center space-x-2">
           <FileImporter
@@ -496,43 +436,13 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
             description="Importez les données de balance depuis un fichier Excel ou CSV"
             helpType="balance"
           />
-          {/* Sélecteur simple de période (optionnel) */}
-          <input
-            type="text"
-            value={period}
-            onChange={(e) => { 
-              setPeriod(e.target.value); 
-              (async () => {
-                try {
-                  await setLastUsedPeriod(clientId, e.target.value);
-                } catch (error) {
-                  console.warn('Erreur lors de la sauvegarde de la période:', error);
-                }
-              })();
-            }}
-            className="px-2 py-1 text-sm border rounded"
-            placeholder="Période (ex: 2024-01)"
-            title="Période de la balance"
-          />
+          
+          
+          
+          
           {importedItems.length > 0 && (
             <button
-              onClick={() => {
-                (async () => {
-                  setImportedItems([]);
-                  try {
-                    await clearBalanceLocalCache(clientId, period);
-                    await clearBalance(clientId, period);
-                  } catch (error) {
-                    console.warn('Erreur lors de la suppression:', error);
-                  }
-                  showNotification({
-                    type: "info",
-                    title: "Données effacées",
-                    message: "Les données importées ont été supprimées.",
-                    duration: 3000,
-                  });
-                })();
-              }}
+              onClick={clearData}
               className="px-3 py-2 text-sm text-red-600 border border-red-300 rounded-md hover:bg-red-50"
               title="Effacer les données importées"
             >
@@ -610,29 +520,23 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-sm text-right font-mono font-medium text-gray-900">
                     <span
-                      title={`Débit original: "${
-                        (item as any).originalDebit
-                      }" (type: ${typeof (item as any).originalDebit})`}
+                      title={`Débit: ${formatCurrency(item.debit)} | original: "${
+                        (item as any).originalDebit ?? ""
+                      }"`}
                     >
-                      {(item as any).originalDebit &&
-                      (item as any).originalDebit !== "0" &&
-                      (item as any).originalDebit !== "0,00" &&
-                      (item as any).originalDebit !== "0.00"
-                        ? (item as any).originalDebit
+                      {toNumber(item.debit) !== 0
+                        ? formatCurrency(item.debit)
                         : ""}
                     </span>
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-sm text-right font-mono font-medium text-gray-900">
                     <span
-                      title={`Crédit original: "${
-                        (item as any).originalCredit
-                      }" (type: ${typeof (item as any).originalCredit})`}
+                      title={`Crédit: ${formatCurrency(item.credit)} | original: "${
+                        (item as any).originalCredit ?? ""
+                      }"`}
                     >
-                      {(item as any).originalCredit &&
-                      (item as any).originalCredit !== "0" &&
-                      (item as any).originalCredit !== "0,00" &&
-                      (item as any).originalCredit !== "0.00"
-                        ? (item as any).originalCredit
+                      {toNumber(item.credit) !== 0
+                        ? formatCurrency(item.credit)
                         : ""}
                     </span>
                   </td>

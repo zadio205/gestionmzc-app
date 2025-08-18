@@ -31,8 +31,9 @@ export async function GET(request: Request) {
 
   // 1) Try persistent storage (Supabase)
   try {
-    const supabase = supabaseServer();
-    let query = supabase.from('balance').select('*').eq('client_id', clientId);
+  const supabase = supabaseServer();
+  const table = await resolveBalanceTableServer(supabase);
+  let query = supabase.from(table).select('*').eq('client_id', clientId);
     if (period) query = query.eq('period', period);
     const { data, error } = await query.order('account_number', { ascending: true });
     if (error) throw error;
@@ -94,11 +95,12 @@ export async function POST(request: Request) {
     // Upsert strategy: delete previous period rows for client then insert fresh set
     let inserted = 0;
     try {
-      const supabase = supabaseServer();
+  const supabase = supabaseServer();
+  const table = await resolveBalanceTableServer(supabase);
       if (period) {
-        await supabase.from('balance').delete().eq('client_id', clientId).eq('period', period);
+        await supabase.from(table).delete().eq('client_id', clientId).eq('period', period);
       } else {
-        await supabase.from('balance').delete().eq('client_id', clientId);
+        await supabase.from(table).delete().eq('client_id', clientId);
       }
 
       if (normalized.length > 0) {
@@ -113,7 +115,7 @@ export async function POST(request: Request) {
           import_index: i.importIndex ?? null,
           created_at: i.createdAt ? i.createdAt.toISOString() : new Date().toISOString(),
         }));
-        const { error } = await supabase.from('balance').insert(payload);
+  const { error } = await supabase.from(table).insert(payload);
         if (error) throw error;
         inserted = normalized.length;
       }
@@ -140,8 +142,9 @@ export async function DELETE(request: Request) {
 
   let deleted = 0;
   try {
-    const supabase = supabaseServer();
-    let del = supabase.from('balance').delete({ count: 'exact' }).eq('client_id', clientId);
+  const supabase = supabaseServer();
+  const table = await resolveBalanceTableServer(supabase);
+    let del = supabase.from(table).delete({ count: 'exact' }).eq('client_id', clientId);
     if (period) del = del.eq('period', period);
     const { count, error } = await del;
     if (error) throw error;
@@ -151,4 +154,25 @@ export async function DELETE(request: Request) {
   }
   clearBalanceCache(clientId, period);
   return NextResponse.json({ deleted }, { status: 200 });
+}
+
+// Résolution serveur du nom de table avec vérification d'existence
+async function resolveBalanceTableServer(supabase: ReturnType<typeof supabaseServer>): Promise<string> {
+  // helper
+  const exists = async (name: string) => {
+    try {
+      const { error } = await supabase.from(name).select('*').limit(0);
+      return !error;
+    } catch {
+      return false;
+    }
+  };
+
+  const preferred = process.env.NEXT_PUBLIC_BALANCE_TABLE?.trim();
+  if (preferred && await exists(preferred)) return preferred;
+
+  if (await exists('balance_items')) return 'balance_items';
+  if (await exists('balance')) return 'balance';
+  // défaut
+  return preferred || 'balance_items';
 }

@@ -214,22 +214,10 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Grand livre des fournisseurs</h2>
-            <p className="text-sm text-gray-600">Suivi des dettes fournisseurs</p>
-          </div>
+                      </div>
           
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="text-sm border border-gray-300 rounded-md px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="2024-01">Janvier 2024</option>
-                <option value="2023-12">Décembre 2023</option>
-                <option value="2023-11">Novembre 2023</option>
-              </select>
-            </div>
+            
             
             <div className="flex items-center space-x-2">
               <FileImporter
@@ -243,13 +231,7 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                 <Download className="w-4 h-4" />
                 <span>Exporter</span>
               </button>
-              {/* Bouton réinitialisation cache (optionnel) */}
-              <button
-                onClick={() => { setImportedEntries([]); try { clearSupplierLedgerCache(clientId); } catch {} }}
-                className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200"
-              >
-                <span>Vider</span>
-              </button>
+              
             </div>
           </div>
         </div>
