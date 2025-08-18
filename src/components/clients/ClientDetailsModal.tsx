@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, BarChart3, Users, Truck, FileText } from 'lucide-react';
 import { Client } from '@/types';
 import BalancePage from './modal-pages/BalancePage';
@@ -12,6 +13,8 @@ interface ClientDetailsModalProps {
   client: Client;
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: TabType;
+  onTabChange?: (tab: TabType) => void;
 }
 
 type TabType = 'balance' | 'clients' | 'suppliers' | 'miscellaneous';
@@ -20,10 +23,33 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
   client,
   isOpen,
   onClose,
+  initialTab,
+  onTabChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('balance');
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? 'balance');
+  const router = useRouter();
+
+  // Réinitialiser l'onglet à 'balance' à chaque ouverture
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab ?? 'balance');
+    }
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
+
+  // Fermer avec la touche Échap
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }
+  }, [onClose, isOpen]);
 
   const tabs = [
     {
@@ -70,7 +96,10 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Overlay */}
-      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black bg-opacity-50"
+        onClick={onClose}
+      />
       
       {/* Modal */}
       <div className="relative w-full h-full bg-white flex flex-col">
@@ -83,6 +112,7 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
@@ -99,7 +129,7 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => { setActiveTab(tab.id); onTabChange?.(tab.id); }}
                 className={`flex items-center space-x-2 px-6 py-4 font-medium text-sm transition-colors relative ${
                   isActive
                     ? `text-${tab.color}-600 bg-white border-b-2 border-${tab.color}-600`

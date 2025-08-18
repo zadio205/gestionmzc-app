@@ -24,6 +24,16 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
   const [uploadContext, setUploadContext] = useState<{ entryId: string; clientId: string } | null>(null);
   const { showNotification } = useNotification();
 
+  // Fermer les modals internes si le parent se ferme
+  useEffect(() => {
+    const closeAll = () => {
+      setUploadModalOpen(false);
+      setUploadContext(null);
+    };
+    window.addEventListener('close-all-modals', closeAll as any);
+    return () => window.removeEventListener('close-all-modals', closeAll as any);
+  }, []);
+
   // Charger depuis cache mémoire si présent
   useEffect(() => {
     if (!clientId) return;

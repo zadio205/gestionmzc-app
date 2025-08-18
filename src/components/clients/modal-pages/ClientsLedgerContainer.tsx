@@ -78,6 +78,18 @@ export const ClientsLedgerContainer: React.FC<ClientsLedgerContainerProps> = ({
     return () => (window as any).removeEventListener('open-upload-justificatif', handler);
   }, []);
 
+  // Fermer les modals internes si le parent se ferme
+  useEffect(() => {
+    const closeAll = () => {
+      setUploadModalOpen(false);
+      setUploadContext(null);
+      setDetailsModalOpen(false);
+      setDetailsEntryId(null);
+    };
+    window.addEventListener('close-all-modals', closeAll as any);
+    return () => window.removeEventListener('close-all-modals', closeAll as any);
+  }, []);
+
   return (
     <div className="h-full flex flex-col">
       {isClientIdInvalid ? (

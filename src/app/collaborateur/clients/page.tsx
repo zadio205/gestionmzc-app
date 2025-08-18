@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { Search, Eye, Mail, Phone, MessageCircle, FileText, Calendar } from 'lucide-react';
@@ -21,6 +22,7 @@ const CollaborateurClients = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<ClientWithExtras | null>(null);
+  const router = useRouter();
 
   // Plus de données d'exemple
   const clients: ClientWithExtras[] = [];
@@ -45,7 +47,51 @@ const CollaborateurClients = () => {
   const handleViewClient = (client: ClientWithExtras) => {
     setSelectedClient(client);
     setShowDetailsModal(true);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('modal', 'client-details');
+      params.set('clientId', client._id);
+      router.replace(`${window.location.pathname}?${params.toString()}`);
+    }
   };
+
+  // Hydrate depuis l'URL au montage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const modal = sp.get('modal');
+    const clientId = sp.get('clientId');
+    if (modal === 'client-details' && clientId) {
+      const found = clients.find(c => c._id === clientId) || null;
+      setSelectedClient(found);
+      setShowDetailsModal(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Si les clients sont chargés plus tard, retenter depuis l'URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (selectedClient) return;
+    const sp = new URLSearchParams(window.location.search);
+    const modal = sp.get('modal');
+    const clientId = sp.get('clientId');
+    if (modal === 'client-details' && clientId) {
+      const found = clients.find(c => c._id === clientId) || null;
+      if (found) {
+        setSelectedClient(found);
+        setShowDetailsModal(true);
+      }
+    }
+  }, [clients, selectedClient]);
+
+  const initialTabFromUrl = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get('tab');
+    if (t === 'balance' || t === 'clients' || t === 'suppliers' || t === 'miscellaneous') return t;
+    return undefined;
+  }, []);
 
   return (
     <DashboardLayout userRole="collaborateur" userId={user._id}>
@@ -202,9 +248,32 @@ const CollaborateurClients = () => {
           <ClientDetailsModal
             client={selectedClient}
             isOpen={showDetailsModal}
+            initialTab={initialTabFromUrl}
+            onTabChange={(tab) => {
+              if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                params.set('tab', tab);
+                params.set('modal', 'client-details');
+                params.set('clientId', selectedClient._id);
+                router.replace(`${window.location.pathname}?${params.toString()}`);
+              }
+            }}
             onClose={() => {
               setShowDetailsModal(false);
               setSelectedClient(null);
+              if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('modal');
+                params.delete('clientId');
+                params.delete('tab');
+                const q = params.toString();
+                const newUrl = q ? `${window.location.pathname}?${q}` : window.location.pathname;
+                try {
+                  window.history.replaceState(null, '', newUrl);
+                } catch {
+                  // ignore
+                }
+              }
             }}
           />
         )}

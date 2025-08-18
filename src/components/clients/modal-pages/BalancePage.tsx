@@ -5,6 +5,8 @@ import { TrendingUp, TrendingDown, BarChart3, PieChart } from "lucide-react";
 import { BalanceItem, BalanceIndicator } from "@/types/accounting";
 import FileImporter from "@/components/ui/FileImporter";
 import { useNotification } from "@/contexts/NotificationContextSimple";
+import { listBalance, saveBalance, clearBalance } from "@/services/balanceApi";
+import { getBalanceLocalCache, setBalanceLocalCache, clearBalanceLocalCache, getLastUsedPeriod, setLastUsedPeriod } from "@/lib/balanceLocalCache";
 
 interface BalancePageProps {
   clientId: string;
@@ -16,6 +18,57 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
   );
   const [importedItems, setImportedItems] = useState<BalanceItem[]>([]);
   const { showNotification } = useNotification();
+  const [loading, setLoading] = useState(false);
+  const [period, setPeriod] = useState<string>("2024-01");
+
+  // Au montage, essayer de restaurer la dernière période utilisée pour ce client
+  useEffect(() => {
+    const last = getLastUsedPeriod(clientId);
+    if (last) setPeriod(last);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  // Fermer les états internes si le parent se ferme
+  useEffect(() => {
+    const closeAll = () => {
+      setActiveSubPage("balance");
+      // Pas de reset des données importées - on garde les données
+    };
+    window.addEventListener('close-all-modals', closeAll as any);
+    return () => window.removeEventListener('close-all-modals', closeAll as any);
+  }, []);
+
+  // Charger la balance persistée au montage
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        // 1) Essayer cache local (évite flicker et couvre le offline)
+        const local = getBalanceLocalCache(clientId, period);
+        if (mounted && local && local.length > 0) {
+          setImportedItems(local);
+        }
+        // 2) Puis interroger l'API (écrase avec la source serveur si dispo)
+        const { items } = await listBalance(clientId, period);
+  if (!mounted) return;
+  const safeItems = items || [];
+  setImportedItems(safeItems);
+  setBalanceLocalCache(clientId, period, safeItems);
+  // Persister la période utilisée si on a des données
+  if (safeItems.length > 0) setLastUsedPeriod(clientId, period);
+      } catch (e) {
+        // fallback: si pas de base, garder uniquement localStorage
+        const localOnly = getBalanceLocalCache(clientId, period);
+        if (mounted && localOnly) setImportedItems(localOnly);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [clientId, period]);
 
   // Debug useEffect pour surveiller les changements d'état
   useEffect(() => {
@@ -165,7 +218,7 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
     }).format(toNumber(amount));
   };
 
-  const handleImport = (data: any[]) => {
+  const handleImport = async (data: any[]) => {
     console.log("🚀 DEBUT IMPORT - Données reçues:", data);
     console.log("🚀 Type des données:", typeof data);
     console.log("🚀 Nombre de lignes:", data.length);
@@ -310,7 +363,7 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
         credit: creditNum,
         balance: subtractNumbers(debitNum, creditNum),
         clientId,
-        period: "2024-01",
+        period: period,
         createdAt: new Date(),
         importIndex: index,
         originalDebit: debitStr,
@@ -330,7 +383,36 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
     console.log("🎉 Éléments traités finaux:", newItems);
     console.log("🎉 Nombre d'éléments à ajouter:", newItems.length);
 
-    setImportedItems(newItems);
+  setImportedItems(newItems);
+  // Mettre à jour cache local immédiatement
+  setBalanceLocalCache(clientId, period, newItems);
+  setLastUsedPeriod(clientId, period);
+
+    // Persister en base pour ne pas perdre au changement de page
+    try {
+      await saveBalance(newItems.map(i => ({
+        accountNumber: i.accountNumber,
+        accountName: i.accountName,
+        debit: i.debit,
+        credit: i.credit,
+        balance: i.balance,
+        clientId: i.clientId,
+        period: i.period,
+        importIndex: i.importIndex,
+        originalDebit: (i as any).originalDebit,
+        originalCredit: (i as any).originalCredit,
+      })));
+  // Après sauvegarde serveur, on s'aligne côté localStorage
+  setBalanceLocalCache(clientId, period, newItems);
+  setLastUsedPeriod(clientId, period);
+    } catch (e: any) {
+      showNotification({
+        type: "warning",
+        title: "Sauvegarde locale uniquement",
+        message: `Impossible d'enregistrer en base pour le moment: ${e?.message || ''}`,
+        duration: 4000,
+      });
+    }
 
     // Afficher un message de succès
     if (newItems.length > 0) {
@@ -402,16 +484,31 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
             description="Importez les données de balance depuis un fichier Excel ou CSV"
             helpType="balance"
           />
+          {/* Sélecteur simple de période (optionnel) */}
+          <input
+            type="text"
+            value={period}
+            onChange={(e) => { setPeriod(e.target.value); setLastUsedPeriod(clientId, e.target.value); }}
+            className="px-2 py-1 text-sm border rounded"
+            placeholder="Période (ex: 2024-01)"
+            title="Période de la balance"
+          />
           {importedItems.length > 0 && (
             <button
               onClick={() => {
-                setImportedItems([]);
-                showNotification({
-                  type: "info",
-                  title: "Données effacées",
-                  message: "Les données importées ont été supprimées.",
-                  duration: 3000,
-                });
+                (async () => {
+                  setImportedItems([]);
+                  clearBalanceLocalCache(clientId, period);
+                  try {
+                    await clearBalance(clientId, period);
+                  } catch {}
+                  showNotification({
+                    type: "info",
+                    title: "Données effacées",
+                    message: "Les données importées ont été supprimées.",
+                    duration: 3000,
+                  });
+                })();
               }}
               className="px-3 py-2 text-sm text-red-600 border border-red-300 rounded-md hover:bg-red-50"
               title="Effacer les données importées"
@@ -421,11 +518,15 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
           )}
         </div>
       </div>
-      {allBalanceItems.length === 0 && (
+      {(loading || allBalanceItems.length === 0) && (
         <div className="p-8 text-center text-gray-500">
-          <p>
-            Aucune donnée disponible. Importez un fichier CSV pour commencer.
-          </p>
+          {loading ? (
+            <p>Chargement des données de balance…</p>
+          ) : (
+            <p>
+              Aucune donnée disponible. Importez un fichier CSV pour commencer.
+            </p>
+          )}
         </div>
       )}
 

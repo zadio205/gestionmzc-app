@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { Search, Plus, Edit, Trash2, Mail, Eye } from 'lucide-react';
@@ -22,6 +23,73 @@ const ClientsManagement = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<ClientWithExtras | null>(null);
+  const router = useRouter();
+
+  // Hydrate modal state from URL on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const modal = sp.get('modal');
+    const clientId = sp.get('clientId');
+    const tab = (sp.get('tab') as any) as 'balance' | 'clients' | 'suppliers' | 'miscellaneous' | null;
+    if (modal === 'client-details' && clientId) {
+      // Try to preselect client from loaded list when available
+      const found = clients.find(c => c._id === clientId) || null;
+      if (found) {
+        setSelectedClient(found);
+        setShowDetailsModal(true);
+      } else {
+        // Fallback visuel immédiat: restaurer depuis sessionStorage si présent
+        try {
+          const raw = window.sessionStorage.getItem('client-details-selection');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.client?._id === clientId) {
+              setSelectedClient(parsed.client);
+              setShowDetailsModal(true);
+            }
+          }
+        } catch {}
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // (effet ajouté plus bas, après déclaration de clients)
+
+  // Keep URL in sync when opening/closing the details modal
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (showDetailsModal && selectedClient) {
+      params.set('modal', 'client-details');
+      params.set('clientId', selectedClient._id);
+      router.replace(`${window.location.pathname}?${params.toString()}`);
+    } else {
+      params.delete('modal');
+      params.delete('clientId');
+      params.delete('tab');
+      const q = params.toString();
+      router.replace(q ? `${window.location.pathname}?${q}` : `${window.location.pathname}`);
+    }
+  }, [showDetailsModal, selectedClient, router]);
+
+  const initialTabFromUrl = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    try {
+      const raw = window.sessionStorage.getItem('client-details-selection');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.tab && ['balance','clients','suppliers','miscellaneous'].includes(parsed.tab)) {
+          return parsed.tab as any;
+        }
+      }
+    } catch {}
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get('tab');
+    if (t === 'balance' || t === 'clients' || t === 'suppliers' || t === 'miscellaneous') return t;
+    return undefined;
+  }, []);
   const [clients, setClients] = useState<ClientWithExtras[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +147,21 @@ const ClientsManagement = () => {
     fetchClients();
   }, []);
 
+  // Si les clients arrivent après, retenter l'ouverture du modal depuis l'URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const modal = sp.get('modal');
+    const clientId = sp.get('clientId');
+    if (modal === 'client-details' && clientId && !selectedClient) {
+      const found = clients.find(c => c._id === clientId) || null;
+      if (found) {
+        setSelectedClient(found);
+        setShowDetailsModal(true);
+      }
+    }
+  }, [clients, selectedClient]);
+
   if (loading) {
     return <div className="flex items-center justify-center h-screen">Chargement...</div>;
   }
@@ -97,6 +180,13 @@ const ClientsManagement = () => {
   const handleViewClient = (client: ClientWithExtras) => {
     setSelectedClient(client);
     setShowDetailsModal(true);
+    if (typeof window !== 'undefined') {
+  try { window.sessionStorage.setItem('client-details-selection', JSON.stringify({ client, tab: 'balance' })); } catch {}
+      const params = new URLSearchParams(window.location.search);
+      params.set('modal', 'client-details');
+      params.set('clientId', client._id);
+      router.replace(`${window.location.pathname}?${params.toString()}`);
+    }
   };
 
   const handleEditClient = (client: ClientWithExtras) => {
@@ -608,9 +698,37 @@ const ClientsManagement = () => {
           <ClientDetailsModal
             client={selectedClient}
             isOpen={showDetailsModal}
+            initialTab={initialTabFromUrl}
+            onTabChange={(tab) => {
+              if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                params.set('tab', tab);
+                params.set('modal', 'client-details');
+                params.set('clientId', selectedClient._id);
+                router.replace(`${window.location.pathname}?${params.toString()}`);
+                try {
+                  const raw = window.sessionStorage.getItem('client-details-selection');
+                  const parsed = raw ? JSON.parse(raw) : { client: selectedClient };
+                  window.sessionStorage.setItem('client-details-selection', JSON.stringify({ ...parsed, tab }));
+                } catch {}
+              }
+            }}
             onClose={() => {
               setShowDetailsModal(false);
               setSelectedClient(null);
+              if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('modal');
+                params.delete('clientId');
+                params.delete('tab');
+                const q = params.toString();
+                const newUrl = q ? `${window.location.pathname}?${q}` : window.location.pathname;
+                try {
+                  window.history.replaceState(null, '', newUrl);
+                } catch {
+                  // fallback no-op
+                }
+              }
             }}
           />
         )}

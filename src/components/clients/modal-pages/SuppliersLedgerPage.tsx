@@ -35,6 +35,16 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
   }, [clientId]);
   const supplierLedgerEntries: SupplierLedger[] = [];
 
+  // Fermer les modals internes si le parent se ferme
+  useEffect(() => {
+    const closeAll = () => {
+      setUploadModalOpen(false);
+      setUploadContext(null);
+    };
+    window.addEventListener('close-all-modals', closeAll as any);
+    return () => window.removeEventListener('close-all-modals', closeAll as any);
+  }, []);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
