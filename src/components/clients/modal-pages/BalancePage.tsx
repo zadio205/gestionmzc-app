@@ -23,8 +23,14 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
 
   // Au montage, essayer de restaurer la dernière période utilisée pour ce client
   useEffect(() => {
-    const last = getLastUsedPeriod(clientId);
-    if (last) setPeriod(last);
+    (async () => {
+      try {
+        const last = await getLastUsedPeriod(clientId);
+        if (last) setPeriod(last);
+      } catch (error) {
+        console.warn('Erreur lors de la récupération de la dernière période:', error);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
@@ -44,22 +50,22 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
     (async () => {
       try {
         setLoading(true);
-        // 1) Essayer cache local (évite flicker et couvre le offline)
-        const local = getBalanceLocalCache(clientId, period);
+        // 1) Essayer cache Supabase (évite flicker et couvre le offline)
+        const local = await getBalanceLocalCache(clientId, period);
         if (mounted && local && local.length > 0) {
           setImportedItems(local);
         }
         // 2) Puis interroger l'API (écrase avec la source serveur si dispo)
         const { items } = await listBalance(clientId, period);
-  if (!mounted) return;
-  const safeItems = items || [];
-  setImportedItems(safeItems);
-  setBalanceLocalCache(clientId, period, safeItems);
-  // Persister la période utilisée si on a des données
-  if (safeItems.length > 0) setLastUsedPeriod(clientId, period);
+        if (!mounted) return;
+        const safeItems = items || [];
+        setImportedItems(safeItems);
+        await setBalanceLocalCache(clientId, period, safeItems);
+        // Persister la période utilisée si on a des données
+        if (safeItems.length > 0) await setLastUsedPeriod(clientId, period);
       } catch (e) {
-        // fallback: si pas de base, garder uniquement localStorage
-        const localOnly = getBalanceLocalCache(clientId, period);
+        // fallback: si pas de base, garder uniquement le cache Supabase
+        const localOnly = await getBalanceLocalCache(clientId, period);
         if (mounted && localOnly) setImportedItems(localOnly);
       } finally {
         if (mounted) setLoading(false);
@@ -384,9 +390,15 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
     console.log("🎉 Nombre d'éléments à ajouter:", newItems.length);
 
   setImportedItems(newItems);
-  // Mettre à jour cache local immédiatement
-  setBalanceLocalCache(clientId, period, newItems);
-  setLastUsedPeriod(clientId, period);
+  // Mettre à jour cache Supabase immédiatement
+  (async () => {
+    try {
+      await setBalanceLocalCache(clientId, period, newItems);
+      await setLastUsedPeriod(clientId, period);
+    } catch (error) {
+      console.warn('Erreur lors de la mise à jour du cache:', error);
+    }
+  })();
 
     // Persister en base pour ne pas perdre au changement de page
     try {
@@ -402,9 +414,9 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
         originalDebit: (i as any).originalDebit,
         originalCredit: (i as any).originalCredit,
       })));
-  // Après sauvegarde serveur, on s'aligne côté localStorage
-  setBalanceLocalCache(clientId, period, newItems);
-  setLastUsedPeriod(clientId, period);
+      // Après sauvegarde serveur, on s'aligne côté cache Supabase
+      await setBalanceLocalCache(clientId, period, newItems);
+      await setLastUsedPeriod(clientId, period);
     } catch (e: any) {
       showNotification({
         type: "warning",
@@ -488,7 +500,16 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
           <input
             type="text"
             value={period}
-            onChange={(e) => { setPeriod(e.target.value); setLastUsedPeriod(clientId, e.target.value); }}
+            onChange={(e) => { 
+              setPeriod(e.target.value); 
+              (async () => {
+                try {
+                  await setLastUsedPeriod(clientId, e.target.value);
+                } catch (error) {
+                  console.warn('Erreur lors de la sauvegarde de la période:', error);
+                }
+              })();
+            }}
             className="px-2 py-1 text-sm border rounded"
             placeholder="Période (ex: 2024-01)"
             title="Période de la balance"
@@ -498,10 +519,12 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
               onClick={() => {
                 (async () => {
                   setImportedItems([]);
-                  clearBalanceLocalCache(clientId, period);
                   try {
+                    await clearBalanceLocalCache(clientId, period);
                     await clearBalance(clientId, period);
-                  } catch {}
+                  } catch (error) {
+                    console.warn('Erreur lors de la suppression:', error);
+                  }
                   showNotification({
                     type: "info",
                     title: "Données effacées",
