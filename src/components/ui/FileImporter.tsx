@@ -120,17 +120,31 @@ const FileImporter: React.FC<FileImporterProps> = ({
         .trim();
 
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      
-      reader.onload = (e) => {
-        try {
-          const content = e.target?.result as string;
-          let rows: string[][];
+      const readText = (encoding?: string) => new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(new Error('Erreur lors de la lecture du fichier'));
+        if (encoding) r.readAsText(file, encoding); else r.readAsText(file);
+      });
 
+      (async () => {
+        try {
+          // Lecture initiale en UTF-8
+          let content = await readText('UTF-8');
+          // Heuristique: si caractères de remplacement présents (�) dans l’en-tête, retenter en windows-1252
+          const sniff = content.slice(0, 4096);
+          if (/[\uFFFD]|N�|D�bit|Cr�dit|Libell�/i.test(sniff)) {
+            try {
+              content = await readText('windows-1252');
+            } catch {
+              // ignorer, on restera sur UTF-8
+            }
+          }
+
+          let rows: string[][];
           if (file.name.endsWith('.csv')) {
             rows = parseCSV(content);
           } else {
-            // Pour Excel, on simule le parsing (dans un vrai projet, utiliser une lib comme xlsx)
             reject(new Error('Format Excel non supporté. Merci d’utiliser un fichier CSV (.csv).'));
             return;
           }
@@ -215,10 +229,7 @@ const FileImporter: React.FC<FileImporterProps> = ({
         } catch (err) {
           reject(new Error('Erreur lors du parsing du fichier'));
         }
-      };
-
-      reader.onerror = () => reject(new Error('Erreur lors de la lecture du fichier'));
-      reader.readAsText(file, 'UTF-8'); // Forcer l'encodage UTF-8
+      })();
     });
   };
 

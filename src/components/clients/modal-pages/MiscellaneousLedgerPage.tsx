@@ -20,6 +20,10 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState("2024-01");
   const [importedEntries, setImportedEntries] = useState<MiscellaneousLedger[]>([]);
+  const handleClearImport = () => {
+    try { clearMiscLedgerCache(clientId); } catch {}
+    setImportedEntries([]);
+  };
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadContext, setUploadContext] = useState<{ entryId: string; clientId: string } | null>(null);
   const { showNotification } = useNotification();
@@ -55,8 +59,9 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
   };
 
   const handleImport = async (importedData: SharedImportedRow[]) => {
-  const newEntries: MiscellaneousLedger[] = importedEntries.concat(
-      importedData
+  let lastAccountName = '';
+  let lastAccountNumber = '';
+  const newEntriesRaw: (MiscellaneousLedger | null)[] = importedData
         .filter((row) => row.isValid)
         .map((row, index) => {
           // Normalisation des en-têtes (casse/accents/espaces/BOM)
@@ -74,41 +79,111 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
           Object.keys(row.data || {}).forEach((key) => {
             headerMap[normalize(key)] = key;
           });
+          const headerKeysNorm = Object.keys(headerMap);
+          const valuesList: string[] = Object.values(row.data || {}).map(v => String(v ?? ''));
+          const extractFromAnyCell = (pattern: RegExp): string => {
+            for (const v of valuesList) {
+              const m = v.match(pattern);
+              if (m && m[1]) return m[1].trim();
+            }
+            return '';
+          };
 
-          const findColumnValue = (possibleNames: string[]) => {
-            for (const name of possibleNames) {
-              const originalKey = headerMap[normalize(name)];
-              if (originalKey !== undefined && row.data[originalKey] !== null && row.data[originalKey] !== undefined) {
-                const value = String(row.data[originalKey]).trim();
-                if (value !== "") return value;
+          const fuzzyLookupExact = (candidates: string[]): string | '' => {
+            for (const name of candidates) {
+              const normName = normalize(name);
+              if (headerMap[normName] !== undefined) {
+                const k = headerMap[normName];
+                const v = row.data[k];
+                if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
               }
             }
-            return "";
+            return '';
+          };
+          const fuzzyLookupInclusive = (candidates: string[], requireCompte?: boolean): string | '' => {
+            for (const name of candidates) {
+              const normName = normalize(name);
+              const key = headerKeysNorm.find(h => {
+                const match = h.includes(normName) || normName.includes(h);
+                if (!match) return false;
+                if (requireCompte) return /\bcompte\b/i.test(h);
+                return true;
+              });
+              if (key) {
+                const orig = headerMap[key];
+                const v = row.data[orig];
+                if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+              }
+            }
+            return '';
+          };
+          const findColumnValue = (possibleNames: string[], fallbackHint?: 'ref' | 'accountNumber' | 'accountName' | 'desc' | 'debit' | 'credit' | 'category') => {
+            // Pour accountName, on force une correspondance exacte d’abord; sinon, inclusif avec « compte » requis
+            const direct = fallbackHint === 'accountName'
+              ? (fuzzyLookupExact(possibleNames) || fuzzyLookupInclusive(possibleNames, true))
+              : (fuzzyLookupExact(possibleNames) || fuzzyLookupInclusive(possibleNames));
+            if (direct) return direct;
+            if (fallbackHint) {
+              const picker = (pred: (h: string) => boolean) => {
+                const key = headerKeysNorm.find(pred);
+                if (!key) return '';
+                const v = row.data[headerMap[key]];
+                return v !== undefined && v !== null && String(v).trim() !== '' ? String(v).trim() : '';
+              };
+        if (fallbackHint === 'ref') return picker(h => /(\bref\b|reference|piece|numero|num)/i.test(h));
+        if (fallbackHint === 'accountNumber') return picker(h => /(code\s*compte|numero\s*compte|numero de compte|n[°o]?\s*compte|compte\s*(code|n[°o]?|num|numero))/i.test(h));
+              if (fallbackHint === 'accountName') {
+                // Doit contenir "compte" et l’un de: nom/intitulé, ou exactement "libellé compte"; ne pas matcher "Libellé" seul (description)
+                return picker(h => (
+                  /\bcompte\b/i.test(h) && (/\bnom\b/i.test(h) || /intitul[eé]/i.test(h) || /\blibelle\s*compte\b/i.test(h) || /\bcompte\s*libelle\b/i.test(h))
+                ));
+              }
+              if (fallbackHint === 'desc') return picker(h => /(description|libelle detaille|designation)/i.test(h));
+        if (fallbackHint === 'debit') return picker(h => /(\bmvt\s*debit\b|mouvement\s*debit|montant\s*debit|\bdebit\b)/i.test(h));
+        if (fallbackHint === 'credit') return picker(h => /(\bmvt\s*credit\b|mouvement\s*credit|montant\s*credit|\bcredit\b)/i.test(h));
+              if (fallbackHint === 'category') return picker(h => /(categorie|category)/i.test(h));
+            }
+            return '';
           };
 
           const dateStr = findColumnValue(["Date", "date"]);
-          const accountNumber = CSVSanitizer.sanitizeString(
-            findColumnValue(["N° Compte", "Compte", "accountNumber", "N°compte", "N°Compte", "Numéro compte"])
+          let accountNumber = CSVSanitizer.sanitizeString(
+            findColumnValue(["N° Compte", "Compte N°", "No Compte", "N°compte", "N°Compte", "Numéro compte", "Numéro de compte", "Code Compte", "Code compte", "accountNumber"], 'accountNumber')
           );
-          const accountName = CSVSanitizer.sanitizeString(
-            findColumnValue(["Libellé", "accountName", "Libelle"])
+          let accountName = CSVSanitizer.sanitizeString(
+            findColumnValue(["Nom compte", "Nom du compte", "Libellé compte", "Intitulé compte", "Intitulé du compte", "accountName"], 'accountName')
           );
+          if (!accountName) {
+            const extracted = extractFromAnyCell(/(?:nom\s*compte|nom du compte|libelle\s*compte|intitule\s*compte)\s*[:\-]?\s*(.+)/i);
+            if (extracted) accountName = CSVSanitizer.sanitizeString(extracted);
+          }
+          if (!accountNumber) {
+            const extractedAcc = extractFromAnyCell(/(?:n[°o]?\s*compte|code\s*compte|numero\s*compte|num[\.]?\s*compte)\s*[:\-]?\s*([A-Za-z0-9\- ]+)/i);
+            if (extractedAcc) accountNumber = CSVSanitizer.sanitizeString(extractedAcc);
+          }
+          // Carry-forward des entêtes groupées (Nom compte et N° Compte)
+          if (!accountName && lastAccountName) accountName = lastAccountName;
+          if (!accountNumber && lastAccountNumber) accountNumber = lastAccountNumber;
+          if (accountName) lastAccountName = accountName;
+          if (accountNumber) lastAccountNumber = accountNumber;
           const description = CSVSanitizer.sanitizeString(
-            findColumnValue(["Description", "Libellé détaillé", "description", "libelle", "libellé détaillé"])
+            findColumnValue(["Description", "Libellé détaillé", "Libellé detaille", "Désignation", "Intitulé détaillé", "description", "libelle"], 'desc')
           );
-          const reference = CSVSanitizer.sanitizeString(
-            findColumnValue(["Référence", "Reference", "Ref", "reference", "référence"])
-          );
-          const debitStr = findColumnValue(["Débit", "Debit", "debit", "débits", "montant débit", "montant debit"]);
-          const creditStr = findColumnValue(["Crédit", "Credit", "credit", "crédits", "montant crédit", "montant credit"]);
-          const category = CSVSanitizer.sanitizeString(
-            findColumnValue(["Catégorie", "Category", "category"])
-          );
+          const reference = '';
+          const debitStr = findColumnValue(["Débit", "Debit", "debit", "Débits", "débits", "Montant débit", "montant débit", "montant debit", "Mvt Débit", "Mouvement Débit"], 'debit');
+          const creditStr = findColumnValue(["Crédit", "Credit", "credit", "Crédits", "crédits", "Montant crédit", "montant crédit", "montant credit", "Mvt Crédit", "Mouvement Crédit"], 'credit');
+          const category = '';
 
           const debit = CSVSanitizer.sanitizeNumeric(debitStr);
           const credit = CSVSanitizer.sanitizeNumeric(creditStr);
 
           const date = CSVSanitizer.sanitizeDate(dateStr);
+
+          const headerOnly = (CSVSanitizer.sanitizeNumeric(debitStr) === 0 && CSVSanitizer.sanitizeNumeric(creditStr) === 0) && (
+            !!extractFromAnyCell(/(?:nom\s*compte|nom du compte|libelle\s*compte|intitule\s*compte)\s*[:\-]?\s*(.+)/i) ||
+            !!extractFromAnyCell(/(?:n[°o]?\s*compte|code\s*compte|numero\s*compte|num[\.]?\s*compte)\s*[:\-]?\s*([A-Za-z0-9\- ]+)/i)
+          );
+          if (headerOnly) return null;
 
           return {
             _id: `imported-${Date.now()}-${index}`,
@@ -126,8 +201,9 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
             createdAt: new Date(),
             importIndex: row.index - 1,
           };
-        })
-    );
+    });
+
+  const newEntries = [...importedEntries, ...newEntriesRaw.filter((e): e is MiscellaneousLedger => !!e)];
 
     // Enrichissement IA
   let enriched = newEntries;
@@ -166,14 +242,12 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
   const filteredEntries = importedEntries.filter(
     (entry) =>
       (entry.accountName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (entry.description || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (entry.reference || "").toLowerCase().includes(searchTerm.toLowerCase())
+      (entry.description || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Statut similaire (simplifié)
   const getEntryStatus = (entry: MiscellaneousLedger) => {
-    const hasRef = !!entry.reference && /^(FAC|REG|CHQ|VIR)/i.test(entry.reference);
-    if ((entry.credit || 0) > 0 && !hasRef) {
+    if ((entry.credit || 0) > 0) {
       return { type: 'error' as const, label: 'Justificatif manquant', icon: XCircle };
     }
     if (entry.aiMeta && (entry.aiMeta.suspiciousLevel === 'medium' || entry.aiMeta.suspiciousLevel === 'high')) {
@@ -214,11 +288,18 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
             <div className="flex items-center space-x-2">
               <FileImporter
                 onImport={handleImport}
-                expectedColumns={["Date", "N° Compte", "Libellé", "Description", "Référence", "Débit", "Crédit", "Catégorie"]}
+                expectedColumns={["Date", "Nom compte", "N° Compte", "Libellé", "Débit", "Crédit"]}
                 title="Importer comptes divers"
                 description="Importez les écritures des comptes divers depuis un fichier Excel ou CSV"
                 helpType="miscellaneous"
               />
+              <button
+                onClick={handleClearImport}
+                className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                title="Effacer les écritures importées"
+              >
+                <span>Effacer</span>
+              </button>
               <button className="flex items-center space-x-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700">
                 <Download className="w-4 h-4" />
                 <span>Exporter</span>
@@ -248,7 +329,7 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Date</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Nom Client</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Nom compte</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">N° Compte</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Libellé</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Débit</th>
@@ -262,15 +343,35 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
               {filteredEntries.map((entry) => (
                 <tr key={entry._id} className={entry.importIndex !== undefined ? "bg-orange-50" : undefined}>
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">{entry.date ? formatDate(entry.date) : ''}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-48"></td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-48">
+                    <div className="font-medium text-gray-900 flex items-center gap-2">
+                      {entry.accountName || ''}
+                      {entry.aiMeta && (
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                            entry.aiMeta.suspiciousLevel === 'high'
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : entry.aiMeta.suspiciousLevel === 'medium'
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                              : 'bg-green-50 text-green-700 border-green-200'
+                          }`}
+                          title={`Analyse IA: ${entry.aiMeta.suspiciousLevel}\n- ${(entry.aiMeta.reasons || []).join('\n- ')}`}
+                        >
+                          IA {entry.aiMeta.suspiciousLevel}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">{entry.accountNumber || ""}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{entry.accountName || ""}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+                    <div className="font-medium">{entry.description || ''}</div>
+                  </td>
                   {(() => {
                     const isAmountEmpty = ((entry.debit || 0) === 0) && ((entry.credit || 0) === 0);
                     return (
                       <>
-                        <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-900 tabular-nums w-28">{isAmountEmpty ? "" : (entry.debit > 0 ? formatCurrency(entry.debit) : "")}</td>
-                        <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-900 tabular-nums w-28">{isAmountEmpty ? "" : (entry.credit > 0 ? formatCurrency(entry.credit) : "")}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-sm text-right tabular-nums w-28">{isAmountEmpty ? "" : (entry.debit > 0 ? (<span className="text-red-600 font-medium">{formatCurrency(entry.debit)}</span>) : "")}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-sm text-right tabular-nums w-28">{isAmountEmpty ? "" : (entry.credit > 0 ? (<span className="text-green-600 font-medium">{formatCurrency(entry.credit)}</span>) : "")}</td>
                         <td className={`px-3 py-2 whitespace-nowrap text-sm text-right font-medium tabular-nums w-28 ${entry.balance < 0 ? "text-red-600" : entry.balance > 0 ? "text-green-600" : "text-gray-900"}`}>
                           {isAmountEmpty ? "" : formatCurrency(Math.abs(entry.balance))}
                         </td>

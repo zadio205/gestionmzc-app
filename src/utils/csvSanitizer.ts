@@ -7,26 +7,33 @@ export class CSVSanitizer {
    */
   static sanitizeString(value: string): string {
     if (!value || typeof value !== 'string') return '';
-    
-    return value
-      .trim()
-      // Remove HTML tags
-      .replace(/<[^>]*>/g, '')
-      // Remove script content
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      // Escape special characters
-      .replace(/[<>&"']/g, (match) => {
-        const escapeMap: Record<string, string> = {
-          '<': '&lt;',
-          '>': '&gt;',
-          '&': '&amp;',
-          '"': '&quot;',
-          "'": '&#x27;'
+    // 1) Decode common HTML entities (to éviter COMPTE D&#x27;ATTENTE)
+    const decodeHtmlEntities = (str: string) =>
+      str.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (_, ent: string) => {
+        const named: Record<string, string> = {
+          amp: '&', lt: '<', gt: '>', quot: '"', apos: "'"
         };
-        return escapeMap[match] || match;
-      })
-      // Limit length to prevent DoS
-      .substring(0, 500);
+        if (/^#x/i.test(ent)) {
+          const code = parseInt(ent.slice(2), 16);
+          return Number.isNaN(code) ? `&${ent};` : String.fromCharCode(code);
+        }
+        if (/^#\d+$/i.test(ent)) {
+          const code = parseInt(ent.slice(1), 10);
+          return Number.isNaN(code) ? `&${ent};` : String.fromCharCode(code);
+        }
+        return named[ent] ?? `&${ent};`;
+      });
+
+    let out = String(value);
+    out = decodeHtmlEntities(out);
+    // 2) Remove script blocks entirely
+    out = out.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // 3) Strip remaining HTML tags
+    out = out.replace(/<[^>]*>/g, '');
+    // 4) Normalize spaces incl. non-breaking
+    out = out.replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+    // 5) Limit length to prevent DoS
+    return out.substring(0, 500);
   }
 
   /**

@@ -23,6 +23,10 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
   const { showNotification } = useNotification();
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadContext, setUploadContext] = useState<{ entryId: string; clientId: string } | null>(null);
+  const handleClearImport = () => {
+    try { clearSupplierLedgerCache(clientId); } catch {}
+    setImportedEntries([]);
+  };
 
   // Plus de données d’exemple: la page n’affiche que les entrées importées
   // Charger depuis le cache mémoire comme pour les clients
@@ -59,7 +63,9 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
   const handleImport = async (importedData: SharedImportedRow[]) => {
     console.log('🔍 Données fournisseurs importées:', importedData);
     
-    const newEntries: SupplierLedger[] = importedData
+    let lastSupplierName = '';
+    let lastAccountNumber = '';
+    const newEntries: (SupplierLedger | null)[] = importedData
       .filter(row => row.isValid)
       .map((row, index) => {
         console.log(`🔍 Traitement ligne fournisseur ${row.index}:`, row.data);
@@ -79,45 +85,112 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
         Object.keys(row.data || {}).forEach((key) => {
           headerMap[normalize(key)] = key;
         });
+        const headerKeysNorm = Object.keys(headerMap);
+        const valuesList: string[] = Object.values(row.data || {}).map(v => String(v ?? ''));
+        const extractFromAnyCell = (pattern: RegExp): string => {
+          for (const v of valuesList) {
+            const m = v.match(pattern);
+            if (m && m[1]) return m[1].trim();
+          }
+          return '';
+        };
 
-        const findColumnValue = (possibleNames: string[]) => {
-          for (const name of possibleNames) {
-            const originalKey = headerMap[normalize(name)];
-            if (originalKey !== undefined && row.data[originalKey] !== null && row.data[originalKey] !== undefined) {
-              const value = String(row.data[originalKey]).trim();
-              if (value !== '') return value;
+        const fuzzyLookup = (candidates: string[]): string | '' => {
+          // 1) Exact match on normalized
+          for (const name of candidates) {
+            const normName = normalize(name);
+            if (headerMap[normName] !== undefined) {
+              const k = headerMap[normName];
+              const v = row.data[k];
+              if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
             }
+          }
+          // 2) Includes match (either way, tolerate ponctuation)
+          for (const name of candidates) {
+            const normName = normalize(name);
+            const key = headerKeysNorm.find(h => h.includes(normName) || normName.includes(h));
+            if (key) {
+              const orig = headerMap[key];
+              const v = row.data[orig];
+              if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+            }
+          }
+          return '';
+        };
+        const findColumnValue = (possibleNames: string[], fallbackHint?: 'ref' | 'supplier' | 'accountName' | 'accountNumber' | 'desc' | 'debit' | 'credit') => {
+          const direct = fuzzyLookup(possibleNames);
+          if (direct) return direct;
+          if (fallbackHint) {
+            const picker = (pred: (h: string) => boolean) => {
+              const key = headerKeysNorm.find(pred);
+              if (!key) return '';
+              const v = row.data[headerMap[key]];
+              return v !== undefined && v !== null && String(v).trim() !== '' ? String(v).trim() : '';
+            };
+            if (fallbackHint === 'ref') return picker(h => /(\bref\b|reference|piece|numero|num)/i.test(h));
+            if (fallbackHint === 'supplier') return picker(h => /(fournisseur|supplier|raison sociale|rs)/i.test(h));
+            if (fallbackHint === 'accountName') return picker(h => /(nom|libelle|intitule).*(compte)|compte.*(nom|libelle|intitule)/i.test(h));
+            if (fallbackHint === 'accountNumber') return picker(h => /(code\s*compte|numero\s*compte|numero de compte|n[°o]?\s*compte|compte\s*(code|n[°o]?|num|numero))/i.test(h));
+            if (fallbackHint === 'desc') return picker(h => /(libelle|description|designation|intitule)/i.test(h));
+            if (fallbackHint === 'debit') return picker(h => /(\bmvt\s*debit\b|mouvement\s*debit|montant\s*debit|\bdebit\b)/i.test(h));
+            if (fallbackHint === 'credit') return picker(h => /(\bmvt\s*credit\b|mouvement\s*credit|montant\s*credit|\bcredit\b)/i.test(h));
           }
           return '';
         };
         
         const dateStr = findColumnValue(['Date', 'date']);
-        const supplierName = CSVSanitizer.sanitizeString(
-          findColumnValue(['Nom Fournisseur', 'Fournisseur', 'supplierName'])
+        let supplierName = CSVSanitizer.sanitizeString(
+          findColumnValue([
+            'Nom Fournisseur', 'Fournisseur', 'Nom du fournisseur', 'Raison sociale', 'Fournisseur Nom', 'Nom compte', 'Nom du compte', 'supplierName'
+          ], 'supplier')
         );
+        // Essayer d'extraire depuis une cellule libre (ex: "Nom compte: …") si non trouvé
+        if (!supplierName) {
+          const extracted = extractFromAnyCell(/(?:nom\s*compte|nom du compte|fournisseur|raison\s*sociale)\s*[:\-]?\s*(.+)/i);
+          if (extracted) supplierName = CSVSanitizer.sanitizeString(extracted);
+        }
+        let accountNumber = CSVSanitizer.sanitizeString(
+          findColumnValue([
+            'N° Compte', 'Compte N°', 'No Compte', 'N° compte', 'N° Compte', 'Numéro compte', 'Numéro de compte', 'Code Compte', 'Code compte', 'accountNumber'
+          ], 'accountNumber')
+        );
+        if (!accountNumber) {
+          const extractedAcc = extractFromAnyCell(/(?:n[°o]?\s*compte|code\s*compte|numero\s*compte|num[\.]?\s*compte)\s*[:\-]?\s*([A-Za-z0-9\- ]+)/i);
+          if (extractedAcc) accountNumber = CSVSanitizer.sanitizeString(extractedAcc);
+        }
         const description = CSVSanitizer.sanitizeString(
-          findColumnValue(['Description', 'Libellé', 'description', 'libelle'])
+          findColumnValue(['Description', 'Libellé', 'Libellé détaillé', 'Intitulé', 'Désignation', 'description', 'libelle'], 'desc')
         );
-        const reference = CSVSanitizer.sanitizeString(
-          findColumnValue(['Référence', 'Reference', 'Ref', 'reference', 'référence'])
-        );
-        const debitStr = findColumnValue(['Débit', 'Debit', 'debit', 'débits', 'montant débit', 'montant debit']);
-        const creditStr = findColumnValue(['Crédit', 'Credit', 'credit', 'crédits', 'montant crédit', 'montant credit']);
-        const accountNumber = CSVSanitizer.sanitizeString(
-          findColumnValue(['N° Compte', 'Compte', 'accountNumber', 'N°compte', 'N°Compte', 'Numéro compte'])
-        );
+  const reference = '';
+        const debitStr = findColumnValue(['Débit', 'Debit', 'debit', 'Débits', 'débits', 'Montant débit', 'montant débit', 'montant debit', 'Mvt Débit', 'Mouvement Débit'], 'debit');
+        const creditStr = findColumnValue(['Crédit', 'Credit', 'credit', 'Crédits', 'crédits', 'Montant crédit', 'montant crédit', 'montant credit', 'Mvt Crédit', 'Mouvement Crédit'], 'credit');
+ 
+        
+
+  // Carry-forward des champs groupés (Excel n’indique qu’une fois en tête de section)
+  if (!supplierName && lastSupplierName) supplierName = lastSupplierName;
+  if (!accountNumber && lastAccountNumber) accountNumber = lastAccountNumber;
+  if (supplierName) lastSupplierName = supplierName;
+  if (accountNumber) lastAccountNumber = accountNumber;
         
         // Nettoyer les valeurs numériques (support virgule FR)
-        const debit = CSVSanitizer.sanitizeNumeric(debitStr);
-        const credit = CSVSanitizer.sanitizeNumeric(creditStr);
+  const debit = CSVSanitizer.sanitizeNumeric(debitStr);
+  const credit = CSVSanitizer.sanitizeNumeric(creditStr);
         
         // Parser la date (formats FR et ISO)
         const date = CSVSanitizer.sanitizeDate(dateStr);
         
         console.log(`✅ Ligne fournisseur ${row.index} traitée:`, {
-          dateStr, supplierName, description, reference, debit, credit
+          dateStr, supplierName, description, debit, credit
         });
         
+        // Si la ligne est une ligne d'entête (extrait Nom/N° compte) sans montants, on ne crée pas d'écriture
+        const headerOnly = (debit === 0 && credit === 0) && (
+          !!extractFromAnyCell(/(?:nom\s*compte|nom du compte|fournisseur|raison\s*sociale)\s*[:\-]?\s*(.+)/i) ||
+          !!extractFromAnyCell(/(?:n[°o]?\s*compte|code\s*compte|numero\s*compte|num[\.]?\s*compte)\s*[:\-]?\s*([A-Za-z0-9\- ]+)/i)
+        );
+        if (headerOnly) return null;
+
         return {
           _id: `imported-${Date.now()}-${index}`,
           date,
@@ -136,12 +209,12 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
           importIndex: row.index - 1
         };
       });
-
-    console.log('✅ Entrées fournisseurs traitées:', newEntries);
+    const newEntriesFiltered: SupplierLedger[] = newEntries.filter((e): e is SupplierLedger => !!e);
+    console.log('✅ Entrées fournisseurs traitées:', newEntriesFiltered);
     // Enrichissement IA
-    let enriched = newEntries;
+    let enriched = newEntriesFiltered;
     try {
-      enriched = await enrichEntriesAI(newEntries);
+      enriched = await enrichEntriesAI(newEntriesFiltered);
     } catch (e) {
       console.warn('Enrichissement IA (fournisseurs) indisponible');
     }
@@ -150,7 +223,6 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
   const { unique } = dedupBySignature(enriched, getSupplierLedgerSignature, existingSigs);
   const addedCount = unique.length;
   const duplicateCount = enriched.length - addedCount;
-  setImportedEntries([...importedEntries, ...unique]);
     
     // Notification de succès
     if (addedCount > 0) {
@@ -179,8 +251,7 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
 
   const filteredEntries = allSupplierLedgerEntries.filter(entry =>
     entry.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.reference.toLowerCase().includes(searchTerm.toLowerCase())
+  entry.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const totalDebit = filteredEntries.reduce((sum, entry) => sum + entry.debit, 0);
@@ -204,7 +275,7 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
     const amount = isPayment ? entry.debit : entry.credit;
     const header = isPayment ? 'règlement' : 'facture';
     const dateStr = entry.date ? formatDate(entry.date) : '';
-    return `Bonjour,%0D%0A%0D%0ANous avons identifié un ${header} de ${formatCurrency(amount || 0)}${dateStr ? ` en date du ${dateStr}` : ''} (référence: ${entry.reference || 'non spécifiée'}).%0D%0A%0D%0APourriez-vous nous fournir les justificatifs correspondants ?%0D%0A%0D%0ADescription : ${entry.description || ''}%0D%0A%0D%0AMerci de votre collaboration.%0D%0A%0D%0ACordialement,%0D%0AL'équipe comptable`;
+  return `Bonjour,%0D%0A%0D%0ANous avons identifié un ${header} de ${formatCurrency(amount || 0)}${dateStr ? ` en date du ${dateStr}` : ''}.%0D%0A%0D%0APourriez-vous nous fournir les justificatifs correspondants ?%0D%0A%0D%0ADescription : ${entry.description || ''}%0D%0A%0D%0AMerci de votre collaboration.%0D%0A%0D%0ACordialement,%0D%0AL'équipe comptable`;
   };
 
   return (
@@ -222,7 +293,7 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
             <div className="flex items-center space-x-2">
               <FileImporter
                 onImport={handleImport}
-                expectedColumns={['Date', 'Nom Fournisseur', 'Description', 'Référence', 'Débit', 'Crédit']}
+                expectedColumns={['Date', 'Nom compte', 'N° Compte', 'Libellé', 'Débit', 'Crédit']}
                 title="Importer les écritures fournisseurs"
                 description="Importez les données du grand livre fournisseurs depuis un fichier Excel ou CSV"
                 helpType="suppliers"
@@ -230,6 +301,13 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
               <button className="flex items-center space-x-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700">
                 <Download className="w-4 h-4" />
                 <span>Exporter</span>
+              </button>
+              <button
+                onClick={handleClearImport}
+                className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                title="Effacer les écritures importées"
+              >
+                <span>Effacer</span>
               </button>
               
             </div>
@@ -242,7 +320,7 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
-              placeholder="Rechercher par fournisseur, description ou référence..."
+              placeholder="Rechercher par fournisseur ou description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -281,12 +359,11 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
             const supplierBalance = supplierDebit - supplierCredit;
 
             // Règles statut fournisseurs:
-            // - Débit (règlement): justificatif manquant si pas de référence
+            // - Débit (règlement): justificatif manquant
             // - Crédit (facture): facture non réglée si crédits > débits
             // - Sinon: IA peut marquer "écriture suspecte", sinon conforme
             const getEntryStatus = (entry: SupplierLedger) => {
-              const hasRef = !!(entry.reference && entry.reference.trim().length > 0);
-              if ((entry.debit || 0) > 0 && !hasRef) {
+              if ((entry.debit || 0) > 0) {
                 return { type: 'error' as const, label: 'Justificatif manquant', icon: XCircle };
               }
               if ((entry.credit || 0) > 0 && supplierCredit > supplierDebit) {
@@ -321,7 +398,7 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Date</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Nom Client</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Nom compte</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">N° Compte</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Libellé</th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Débit</th>
@@ -335,11 +412,9 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                       {entries.map((entry) => (
                         <tr key={entry._id} className={`hover:bg-gray-50 ${entry.importIndex !== undefined ? 'bg-orange-50' : ''}`}>
                           <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">{entry.date ? formatDate(entry.date) : ''}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-48"></td>
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">{entry.accountNumber || ''}</td>
-                          <td className="px-3 py-2 text-sm text-gray-900">
-                            <div className="flex items-center gap-2">
-                              <span>{entry.description || ''}</span>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-48">
+                            <div className="font-medium text-gray-900 flex items-center gap-2">
+                              {entry.supplierName || ''}
                               {entry.aiMeta && (
                                 <span
                                   className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
@@ -356,15 +431,23 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                               )}
                             </div>
                           </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">{entry.accountNumber || ''}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900">
+                            <div className="font-medium">{entry.description || ''}</div>
+                          </td>
                           {(() => {
                             const isAmountEmpty = ((entry.debit || 0) === 0) && ((entry.credit || 0) === 0);
                             return (
                               <>
-            <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-900 tabular-nums w-28">
-                                  {isAmountEmpty ? '' : (entry.debit > 0 ? formatCurrency(entry.debit) : '')}
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right tabular-nums w-28">
+                                  {isAmountEmpty ? '' : (entry.debit > 0 ? (
+                                    <span className="text-red-600 font-medium">{formatCurrency(entry.debit)}</span>
+                                  ) : '')}
                                 </td>
-            <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-900 tabular-nums w-28">
-                                  {isAmountEmpty ? '' : (entry.credit > 0 ? formatCurrency(entry.credit) : '')}
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right tabular-nums w-28">
+                                  {isAmountEmpty ? '' : (entry.credit > 0 ? (
+                                    <span className="text-green-600 font-medium">{formatCurrency(entry.credit)}</span>
+                                  ) : '')}
                                 </td>
             <td className={`px-3 py-2 whitespace-nowrap text-sm text-right font-medium tabular-nums w-28 ${
                                   entry.balance < 0 ? 'text-red-600' : entry.balance > 0 ? 'text-green-600' : 'text-gray-900'

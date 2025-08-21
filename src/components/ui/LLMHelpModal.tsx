@@ -106,7 +106,7 @@ const LLMHelpModal: React.FC<LLMHelpModalProps> = ({ isOpen, onClose }) => {
                   <div className="flex items-center space-x-2 mt-2">
                     <Download className="w-4 h-4 text-green-600" />
                     <a
-                      href="/OLLAMA_SETUP.md"
+                      href="https://github.com/zadio205/gestionmzc-app/blob/main/OLLAMA_SETUP.md"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-green-600 hover:text-green-800 text-sm font-medium"
@@ -199,7 +199,7 @@ const LLMHelpModal: React.FC<LLMHelpModalProps> = ({ isOpen, onClose }) => {
           </div>
           <div className="flex items-center space-x-3">
             <a
-              href="/OLLAMA_SETUP.md"
+              href="https://github.com/zadio205/gestionmzc-app/blob/main/OLLAMA_SETUP.md"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"

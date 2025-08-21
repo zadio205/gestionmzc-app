@@ -193,7 +193,7 @@ const LLMStatusIndicator: React.FC<LLMStatusIndicatorProps> = ({
             </div>
             {!ollamaAvailable && (
               <a
-                href="/OLLAMA_SETUP.md"
+                href="https://github.com/zadio205/gestionmzc-app/blob/main/OLLAMA_SETUP.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center space-x-1 text-xs text-blue-600 hover:text-blue-800"
@@ -274,7 +274,7 @@ const LLMStatusIndicator: React.FC<LLMStatusIndicatorProps> = ({
                 </div>
                 <div className="flex items-center space-x-3 mt-2">
                   <a
-                    href="/OLLAMA_SETUP.md"
+                    href="https://github.com/zadio205/gestionmzc-app/blob/main/OLLAMA_SETUP.md"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center space-x-1 text-xs text-green-600 hover:text-green-800"

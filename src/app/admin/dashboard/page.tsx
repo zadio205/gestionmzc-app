@@ -17,6 +17,7 @@ import PredictiveAnalytics from '@/components/dashboard/PredictiveAnalytics';
 import SmartQuickActions from '@/components/dashboard/SmartQuickActions';
 import AIStatusWidget from '@/components/dashboard/AIStatusWidget';
 import ReportGenerator from '@/components/reports/ReportGenerator';
+import OpenAITestWidget from '@/components/debug/OpenAITestWidget';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { 
@@ -210,6 +211,7 @@ const AdminDashboard = () => {
               onDismiss={actions.dismissNotification}
             />
             <AIStatusWidget userRole="admin" />
+            <OpenAITestWidget />
             <MessagesWidget messages={messages} />
             <ActivityFeed activities={activities} />
             
