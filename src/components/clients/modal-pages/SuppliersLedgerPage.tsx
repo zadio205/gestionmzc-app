@@ -1,16 +1,21 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Search, Filter, Download, Calendar, Mail, Upload, Eye, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
+import { Search, Filter, Download, Calendar, Mail, Upload, Eye, AlertTriangle, XCircle, CheckCircle, Share2, MessageCircle } from 'lucide-react';
 import { SupplierLedger } from '@/types/accounting';
 import type { ImportedRow as SharedImportedRow } from '@/types/accounting';
 import { enrichEntriesAI } from '@/services/aiAdapter';
 import FileImporter from '@/components/ui/FileImporter';
 import UploadJustificatifModal from './UploadJustificatifModal';
+import CommentSystem from './CommentSystem';
+import InlineComment from './InlineComment';
+import ExportShareSystem from './ExportShareSystem';
+import ModernLedgerDisplay from './ModernLedgerDisplay';
+import ModernStats from './ModernStats';
 import { useNotification } from '@/contexts/NotificationContextSimple';
 import { CSVSanitizer } from '@/utils/csvSanitizer';
 import { dedupBySignature, getSupplierLedgerSignature } from '@/utils/ledgerDedup';
-import { getSupplierLedgerCache, setSupplierLedgerCache, clearSupplierLedgerCache } from '@/lib/supplierLedgerCache';
+import { getSupplierLedgerCache, setSupplierLedgerCache, clearSupplierLedgerCache, fetchSupplierLedgerFromSupabase, persistSupplierLedgerToSupabase } from '@/lib/supplierLedgerCache';
 
 interface SuppliersLedgerPageProps {
   clientId: string;
@@ -23,6 +28,97 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
   const { showNotification } = useNotification();
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadContext, setUploadContext] = useState<{ entryId: string; clientId: string } | null>(null);
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'modern' | 'classic'>('classic');
+  const [comments, setComments] = useState<any[]>([]);
+
+  // Gestion des commentaires
+  const handleCommentAdd = (entryId: string, comment: any) => {
+    const newComment = { 
+      ...comment, 
+      id: Date.now().toString(), 
+      entryId,
+      createdAt: new Date(),
+      author: 'Utilisateur' // À remplacer par l'utilisateur connecté
+    };
+    setComments(prev => [...prev, newComment]);
+    
+    // Ouvrir automatiquement la section des commentaires pour voir le nouveau commentaire
+    setExpandedComments(prev => new Set([...prev, entryId]));
+    
+    console.log('Commentaire ajouté avec succès:', newComment);
+  };
+
+  const handleCommentUpdate = (commentId: string, updates: any) => {
+    console.log('handleCommentUpdate appelé:', commentId, updates);
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, ...updates } : c));
+  };
+
+  const handleCommentDelete = (commentId: string) => {
+    console.log('handleCommentDelete appelé:', commentId);
+    setComments(prev => prev.filter(c => c.id !== commentId));
+  };
+
+  // Fonction pour éditer une entrée
+  const handleEditEntry = (entry: any) => {
+    console.log('Édition de l\'entrée:', entry);
+    // Ici vous pouvez ouvrir un modal d'édition
+    // Pour l'instant, on simule avec un prompt
+    const newDescription = prompt('Nouvelle description:', entry.description);
+    if (newDescription && newDescription !== entry.description) {
+      // Ici vous devriez mettre à jour dans votre state/API
+      console.log('Description mise à jour:', newDescription);
+      // Simulation de mise à jour
+      setImportedEntries(prev => 
+        prev.map(e => e._id === entry._id ? { ...e, description: newDescription } : e)
+      );
+    }
+  };
+
+  // Fonction pour supprimer une entrée
+  const handleDeleteEntry = (entry: any) => {
+    const confirmation = window.confirm(
+      `Êtes-vous sûr de vouloir supprimer cette entrée ?\n\nDescription: ${entry.description}\nMontant: ${formatCurrency(entry.debit || entry.credit || 0)}`
+    );
+    
+    if (confirmation) {
+      setImportedEntries(prev => prev.filter(e => e._id !== entry._id));
+      console.log('Entrée supprimée:', entry._id);
+    }
+  };
+
+  // Fonction pour exporter une entrée
+  const handleExportEntry = (entry: any) => {
+    const data = {
+      date: formatDate(entry.date),
+      description: entry.description,
+      debit: entry.debit,
+      credit: entry.credit,
+      balance: entry.balance,
+      supplierName: entry.supplierName,
+      reference: entry.reference
+    };
+    
+    const jsonData = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `entry_${entry._id}_${entry.supplierName.replace(/\s+/g, '_')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    console.log('Entrée exportée:', entry._id);
+  };
+
+  // Fonction d'export
+  const onExport = (format: string) => {
+    console.log(`Export ${format} requested`);
+  };
+  
   const handleClearImport = () => {
     try { clearSupplierLedgerCache(clientId); } catch {}
     setImportedEntries([]);
@@ -32,10 +128,23 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
   // Charger depuis le cache mémoire comme pour les clients
   useEffect(() => {
     if (!clientId) return;
-    const cached = getSupplierLedgerCache(clientId);
-    if (cached && cached.length > 0) {
-      setImportedEntries(cached);
-    }
+    // 1) tenter Supabase d'abord
+    let cancelled = false;
+    (async () => {
+      const remote = await fetchSupplierLedgerFromSupabase(clientId);
+      if (!cancelled && remote && remote.length > 0) {
+        setImportedEntries(remote);
+        return;
+      }
+      // 2) fallback caches locaux
+      const cached = getSupplierLedgerCache(clientId);
+      if (!cancelled && cached && cached.length > 0) {
+        setImportedEntries(cached);
+        // Migrer vers Supabase si non présent
+        try { await persistSupplierLedgerToSupabase(clientId, cached); } catch {}
+      }
+    })();
+    return () => { cancelled = true; };
   }, [clientId]);
   const supplierLedgerEntries: SupplierLedger[] = [];
 
@@ -285,10 +394,35 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Grand livre des fournisseurs</h2>
-                      </div>
+            <p className="text-sm text-gray-600 mt-1">
+              Gérez et analysez les écritures de vos fournisseurs
+            </p>
+          </div>
           
           <div className="flex items-center space-x-4">
-            
+            {/* Toggle vue moderne/classique */}
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('modern')}
+                className={`px-3 py-1 rounded-md text-sm transition-all ${
+                  viewMode === 'modern' 
+                    ? 'bg-white shadow-sm text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Vue moderne
+              </button>
+              <button
+                onClick={() => setViewMode('classic')}
+                className={`px-3 py-1 rounded-md text-sm transition-all ${
+                  viewMode === 'classic' 
+                    ? 'bg-white shadow-sm text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Vue classique
+              </button>
+            </div>
             
             <div className="flex items-center space-x-2">
               <FileImporter
@@ -297,6 +431,14 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                 title="Importer les écritures fournisseurs"
                 description="Importez les données du grand livre fournisseurs depuis un fichier Excel ou CSV"
                 helpType="suppliers"
+              />
+              <ExportShareSystem
+                entries={filteredEntries}
+                clientName={`Fournisseurs - Client ${clientId}`}
+                clientId={clientId}
+                ledgerType="suppliers"
+                formatCurrency={formatCurrency}
+                formatDate={formatDate}
               />
               <button className="flex items-center space-x-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700">
                 <Download className="w-4 h-4" />
@@ -350,10 +492,61 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
         </div>
       </div>
 
-      {/* Contenu principal */}
+      {/* Contenu principal avec rendu conditionnel */}
       <div className="flex-1 overflow-auto p-6">
-        <div className="space-y-6">
-          {Object.entries(entriesBySupplier).map(([supplierName, entries]) => {
+        {viewMode === 'modern' ? (
+          <div className="space-y-6">
+            {/* Statistiques modernes */}
+            <ModernStats 
+              entries={filteredEntries} 
+              type="suppliers"
+              formatCurrency={formatCurrency}
+            />
+            
+            {/* Affichage moderne des données */}
+            <ModernLedgerDisplay 
+              entries={filteredEntries}
+              type="suppliers"
+              formatCurrency={formatCurrency}
+              formatDate={formatDate}
+              getEntryStatus={(entry: SupplierLedger) => {
+                if ((entry.debit || 0) > 0) {
+                  return { type: 'error' as const, label: 'Justificatif manquant', icon: 'XCircle' };
+                }
+                if (entry.aiMeta && (entry.aiMeta.suspiciousLevel === 'medium' || entry.aiMeta.suspiciousLevel === 'high')) {
+                  return { type: 'warning' as const, label: 'Écriture suspecte', icon: 'AlertTriangle' };
+                }
+                return { type: 'success' as const, label: 'Conforme', icon: 'CheckCircle' };
+              }}
+              onCommentAdd={handleCommentAdd}
+              onEdit={handleEditEntry}
+              onDelete={handleDeleteEntry}
+              onExport={handleExportEntry}
+              onSendRequest={(entry) => {
+                console.log('Demande de justificatif pour:', entry);
+                const subject = `Demande de justificatif - ${entry.supplierName}`;
+                const body = `Bonjour,
+
+Nous avons besoin du justificatif pour l'écriture suivante :
+
+• Date: ${formatDate(entry.date)}
+• Fournisseur: ${entry.supplierName}
+• Montant: ${formatCurrency(entry.debit || entry.credit || 0)}
+• Description: ${entry.description}
+• Référence: ${entry.reference}
+
+Merci de nous faire parvenir le document justificatif correspondant.
+
+Cordialement`;
+
+                const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                window.open(mailtoLink);
+              }}
+            />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(entriesBySupplier).map(([supplierName, entries]) => {
             const supplierDebit = entries.reduce((sum, entry) => sum + entry.debit, 0);
             const supplierCredit = entries.reduce((sum, entry) => sum + entry.credit, 0);
             const supplierBalance = supplierDebit - supplierCredit;
@@ -405,112 +598,170 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Crédit</th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider tabular-nums w-28">Solde</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Statut</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20">💬</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {entries.map((entry) => (
-                        <tr key={entry._id} className={`hover:bg-gray-50 ${entry.importIndex !== undefined ? 'bg-orange-50' : ''}`}>
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">{entry.date ? formatDate(entry.date) : ''}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-48">
-                            <div className="font-medium text-gray-900 flex items-center gap-2">
-                              {entry.supplierName || ''}
-                              {entry.aiMeta && (
-                                <span
-                                  className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                    entry.aiMeta.suspiciousLevel === 'high'
-                                      ? 'bg-red-50 text-red-700 border-red-200'
-                                      : entry.aiMeta.suspiciousLevel === 'medium'
-                                      ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                                      : 'bg-green-50 text-green-700 border-green-200'
-                                  }`}
-                                  title={`Analyse IA: ${entry.aiMeta.suspiciousLevel}\n- ${(entry.aiMeta.reasons || []).join('\n- ')}`}
-                                >
-                                  IA {entry.aiMeta.suspiciousLevel}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">{entry.accountNumber || ''}</td>
-                          <td className="px-3 py-2 text-sm text-gray-900">
-                            <div className="font-medium">{entry.description || ''}</div>
-                          </td>
-                          {(() => {
-                            const isAmountEmpty = ((entry.debit || 0) === 0) && ((entry.credit || 0) === 0);
-                            return (
-                              <>
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right tabular-nums w-28">
-                                  {isAmountEmpty ? '' : (entry.debit > 0 ? (
-                                    <span className="text-red-600 font-medium">{formatCurrency(entry.debit)}</span>
-                                  ) : '')}
-                                </td>
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right tabular-nums w-28">
-                                  {isAmountEmpty ? '' : (entry.credit > 0 ? (
-                                    <span className="text-green-600 font-medium">{formatCurrency(entry.credit)}</span>
-                                  ) : '')}
-                                </td>
-            <td className={`px-3 py-2 whitespace-nowrap text-sm text-right font-medium tabular-nums w-28 ${
-                                  entry.balance < 0 ? 'text-red-600' : entry.balance > 0 ? 'text-green-600' : 'text-gray-900'
-                                }`}>
-                                  {isAmountEmpty ? '' : (
-                                    <>
-                                      {formatCurrency(Math.abs(entry.balance))}
-                                      {entry.balance < 0 && ' (Dû)'}
-                                    </>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 whitespace-nowrap w-40">
-                                  {!isAmountEmpty && (() => {
-                                    const status = getEntryStatus(entry);
-                                    const Icon = status.icon;
-                                    return (
-                                      <div className="flex items-center space-x-2">
-                                        <Icon className={`w-4 h-4 ${status.type === 'success' ? 'text-green-500' : status.type === 'warning' ? 'text-yellow-500' : 'text-red-500'}`} />
-                                        <span className={`text-xs px-2 py-1 rounded-full ${status.type === 'success' ? 'bg-green-100 text-green-800' : status.type === 'warning' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{status.label}</span>
-                                      </div>
-                                    );
-                                  })()}
-                                </td>
-                                <td className="px-3 py-2 whitespace-nowrap text-center w-28">
-                                  {!isAmountEmpty && (() => {
-                                    const status = getEntryStatus(entry);
-                                    return (
-                                      <div className="flex items-center justify-center space-x-2">
-                                        {status.label === 'Justificatif manquant' && (
-                                          <a
-                                            href={`mailto:?subject=Demande%20de%20justificatif&body=${generateJustificationMessage(entry)}`}
-                                            className="text-amber-600 hover:text-amber-800 p-1 rounded"
-                                            title="Demander justificatif"
-                                          >
-                                            <Mail className="w-4 h-4" />
-                                          </a>
-                                        )}
-                                        {status.label === 'Justificatif manquant' && (
+                        <React.Fragment key={entry._id}>
+                          <tr className={`hover:bg-gray-50 ${entry.importIndex !== undefined ? 'bg-orange-50' : ''}`}>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-28">{entry.date ? formatDate(entry.date) : ''}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-48">
+                              <div className="font-medium text-gray-900 flex items-center gap-2">
+                                {entry.supplierName || ''}
+                                {entry.aiMeta && (
+                                  <span
+                                    className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                      entry.aiMeta.suspiciousLevel === 'high'
+                                        ? 'bg-red-50 text-red-700 border-red-200'
+                                        : entry.aiMeta.suspiciousLevel === 'medium'
+                                        ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                        : 'bg-green-50 text-green-700 border-green-200'
+                                    }`}
+                                    title={`Analyse IA: ${entry.aiMeta.suspiciousLevel}\n- ${(entry.aiMeta.reasons || []).join('\n- ')}`}
+                                  >
+                                    IA {entry.aiMeta.suspiciousLevel}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 w-32">{entry.accountNumber || ''}</td>
+                            <td className="px-3 py-2 text-sm text-gray-900">
+                              <div className="font-medium">{entry.description || ''}</div>
+                            </td>
+                            {(() => {
+                              const isAmountEmpty = ((entry.debit || 0) === 0) && ((entry.credit || 0) === 0);
+                              return (
+                                <>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right tabular-nums w-28">
+                                    {isAmountEmpty ? '' : (entry.debit > 0 ? (
+                                      <span className="text-red-600 font-medium">{formatCurrency(entry.debit)}</span>
+                                    ) : '')}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right tabular-nums w-28">
+                                    {isAmountEmpty ? '' : (entry.credit > 0 ? (
+                                      <span className="text-green-600 font-medium">{formatCurrency(entry.credit)}</span>
+                                    ) : '')}
+                                  </td>
+                                  <td className={`px-3 py-2 whitespace-nowrap text-sm text-right font-medium tabular-nums w-28 ${
+                                    entry.balance < 0 ? 'text-red-600' : entry.balance > 0 ? 'text-green-600' : 'text-gray-900'
+                                  }`}>
+                                    {isAmountEmpty ? '' : (
+                                      <>
+                                        {formatCurrency(Math.abs(entry.balance))}
+                                        {entry.balance < 0 && ' (Dû)'}
+                                      </>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap w-40">
+                                    {!isAmountEmpty && (() => {
+                                      const status = getEntryStatus(entry);
+                                      const Icon = status.icon;
+                                      return (
+                                        <div className="flex items-center space-x-2">
+                                          <Icon className={`w-4 h-4 ${status.type === 'success' ? 'text-green-500' : status.type === 'warning' ? 'text-yellow-500' : 'text-red-500'}`} />
+                                          <span className={`text-xs px-2 py-1 rounded-full ${status.type === 'success' ? 'bg-green-100 text-green-800' : status.type === 'warning' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{status.label}</span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-center w-20 relative">
+                                    <InlineComment 
+                                      entryId={entry._id}
+                                      clientId={clientId}
+                                      showInTable={true}
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-center w-28">
+                                    {!isAmountEmpty && (() => {
+                                      const status = getEntryStatus(entry);
+                                      return (
+                                        <div className="flex items-center justify-center space-x-2">
+                                          {status.label === 'Justificatif manquant' && (
+                                            <a
+                                              href={`mailto:?subject=Demande%20de%20justificatif&body=${generateJustificationMessage(entry)}`}
+                                              className="text-amber-600 hover:text-amber-800 p-1 rounded"
+                                              title="Demander justificatif"
+                                            >
+                                              <Mail className="w-4 h-4" />
+                                            </a>
+                                          )}
+                                          {status.label === 'Justificatif manquant' && (
+                                            <button
+                                              onClick={() => { setUploadContext({ entryId: entry._id, clientId: entry.clientId }); setUploadModalOpen(true); }}
+                                              className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                                              title="Ajouter justificatif"
+                                            >
+                                              <Upload className="w-4 h-4" />
+                                            </button>
+                                          )}
                                           <button
-                                            onClick={() => { setUploadContext({ entryId: entry._id, clientId: entry.clientId }); setUploadModalOpen(true); }}
-                                            className="text-blue-600 hover:text-blue-800 p-1 rounded"
-                                            title="Ajouter justificatif"
+                                            className="text-gray-600 hover:text-gray-800 p-1 rounded"
+                                            title="Voir détails"
                                           >
-                                            <Upload className="w-4 h-4" />
+                                            <Eye className="w-4 h-4" />
                                           </button>
-                                        )}
-                                        <button
-                                          className="text-gray-600 hover:text-gray-800 p-1 rounded"
-                                          title="Voir détails"
-                                        >
-                                          <Eye className="w-4 h-4" />
-                                        </button>
-                                      </div>
-                                    );
-                                  })()}
-                                </td>
-                              </>
-                            );
-                          })()}
-                        </tr>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                </>
+                              );
+                            })()}
+                          </tr>
+                          
+                          {/* Ligne de commentaire intégrée si développée */}
+                          {expandedComments.has(entry._id) && (
+                            <tr>
+                              <td colSpan={9} className="px-0 py-0">
+                                <InlineComment 
+                                  entryId={entry._id}
+                                  clientId={clientId}
+                                  showInTable={false}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
+                </div>
+                
+                {/* Commentaires intégrés pour les entrées sélectionnées */}
+                <div className="border-t border-gray-200">
+                  {entries.filter(entry => expandedComments.has(entry._id)).map(entry => (
+                    <div key={`comment-${entry._id}`} className="p-4 bg-gray-50">
+                      <div className="mb-3">
+                        <h4 className="text-sm font-medium text-gray-900">
+                          Commentaires pour: {entry.description} ({formatCurrency(entry.debit || entry.credit)})
+                        </h4>
+                      </div>
+                      <CommentSystem
+                        entryId={entry._id}
+                        clientId={clientId}
+                        externalComments={comments}
+                        onCommentAdded={() => {
+                          // Actualiser les données si nécessaire
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Système de commentaires général pour le fournisseur */}
+                <div className="p-4 border-t border-gray-200">
+                  <div className="mb-2">
+                    <h4 className="text-sm font-medium text-gray-700">
+                      💬 Commentaires généraux - {supplierName}
+                    </h4>
+                  </div>
+                  <InlineComment
+                    entryId={`supplier-${supplierName}`}
+                    clientId={clientId}
+                    showInTable={false}
+                  />
                 </div>
               </div>
             );
@@ -531,6 +782,7 @@ const SuppliersLedgerPage: React.FC<SuppliersLedgerPageProps> = ({ clientId }) =
             </div>
           )}
         </div>
+        )}
       </div>
       {uploadModalOpen && uploadContext && (
         <UploadJustificatifModal

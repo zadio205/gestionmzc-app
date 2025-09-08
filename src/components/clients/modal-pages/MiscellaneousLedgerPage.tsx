@@ -9,7 +9,7 @@ import FileImporter from "@/components/ui/FileImporter";
 import { useNotification } from "@/contexts/NotificationContextSimple";
 import { CSVSanitizer } from "@/utils/csvSanitizer";
 import { dedupBySignature, getMiscLedgerSignature } from "@/utils/ledgerDedup";
-import { getMiscLedgerCache, setMiscLedgerCache, clearMiscLedgerCache } from "@/lib/miscLedgerCache";
+import { getMiscLedgerCache, setMiscLedgerCache, clearMiscLedgerCache, fetchMiscLedgerFromSupabase, persistMiscLedgerToSupabase } from "@/lib/miscLedgerCache";
 import UploadJustificatifModal from "./UploadJustificatifModal";
 
 interface MiscellaneousLedgerPageProps {
@@ -41,10 +41,20 @@ const MiscellaneousLedgerPage: React.FC<MiscellaneousLedgerPageProps> = ({ clien
   // Charger depuis cache mémoire si présent
   useEffect(() => {
     if (!clientId) return;
-    const cached = getMiscLedgerCache(clientId);
-    if (cached && cached.length > 0) {
-      setImportedEntries(cached);
-    }
+    let cancelled = false;
+    (async () => {
+      const remote = await fetchMiscLedgerFromSupabase(clientId);
+      if (!cancelled && remote && remote.length > 0) {
+        setImportedEntries(remote);
+        return;
+      }
+      const cached = getMiscLedgerCache(clientId);
+      if (!cancelled && cached && cached.length > 0) {
+        setImportedEntries(cached);
+        try { await persistMiscLedgerToSupabase(clientId, cached); } catch {}
+      }
+    })();
+    return () => { cancelled = true; };
   }, [clientId]);
 
   const formatCurrency = (amount: number) => {
