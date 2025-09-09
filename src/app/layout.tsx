@@ -17,6 +17,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
+      <head>
+        <script src="/extension-guard.js" defer></script>
+      </head>
       <body className={inter.className}>
         <NotificationProvider>
           {children}

@@ -20,8 +20,8 @@ interface ViewCustomizationProps {
   columns: string[];
   visibleColumns: string[];
   onToggleColumn: (column: string) => void;
-  viewMode: 'compact' | 'detailed' | 'cards';
-  onViewModeChange: (mode: 'compact' | 'detailed' | 'cards') => void;
+  viewMode: 'compact' | 'detailed';
+  onViewModeChange: (mode: 'compact' | 'detailed') => void;
   sortField?: string;
   sortDirection?: 'asc' | 'desc';
   onSort?: (field: string, direction: 'asc' | 'desc') => void;
@@ -69,8 +69,7 @@ const ViewCustomization: React.FC<ViewCustomizationProps> = ({
 
   const viewModeOptions = [
     { value: 'compact', label: 'Compact', icon: List, description: 'Vue condensée, plus d\'entrées visibles' },
-    { value: 'detailed', label: 'Détaillé', icon: LayoutGrid, description: 'Vue complète avec toutes les informations' },
-    { value: 'cards', label: 'Cartes', icon: Columns, description: 'Vue en cartes, idéale pour la révision' }
+    { value: 'detailed', label: 'Détaillé', icon: LayoutGrid, description: 'Vue complète avec toutes les informations' }
   ];
 
   const densityOptions = [
@@ -139,7 +138,7 @@ const ViewCustomization: React.FC<ViewCustomizationProps> = ({
             <div className="space-y-6">
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-3">Mode d'affichage</h4>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   {viewModeOptions.map(({ value, label, icon: Icon, description }) => (
                     <button
                       key={value}

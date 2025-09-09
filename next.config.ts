@@ -12,6 +12,20 @@ const nextConfig: NextConfig = {
   { protocol: 'https', hostname: 'bhmodzvtsnijrurvkjtv.supabase.co' },
     ],
   },
+  // Configuration pour éviter les conflits avec les extensions de navigateur
+  experimental: {
+    optimizePackageImports: ['@supabase/supabase-js'],
+  },
+  // Améliorer la compatibilité avec les extensions
+  webpack: (config: any) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      net: false,
+      tls: false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

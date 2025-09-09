@@ -9,7 +9,6 @@ import {
   DollarSign,
   Calendar,
   BarChart3,
-  PieChart,
   Activity,
   Zap
 } from 'lucide-react';
@@ -198,46 +197,7 @@ const ModernStats: React.FC<ModernStatsProps> = ({ entries, type, formatCurrency
         </div>
       </div>
 
-      {/* Detailed breakdown */}
-      <div className="md:col-span-2 lg:col-span-4 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Répartition détaillée</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Débits */}
-          <div className="text-center">
-            <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mx-auto mb-3">
-              <TrendingDown className="w-8 h-8 text-red-600" />
-            </div>
-            <p className="text-sm font-medium text-gray-600">Total Débits</p>
-            <p className="text-2xl font-bold text-red-600 mt-1">{formatCurrency(stats.totalDebit)}</p>
-            <p className="text-sm text-gray-500 mt-1">
-              {stats.totalEntries > 0 ? `${((stats.totalDebit / (stats.totalDebit + stats.totalCredit)) * 100).toFixed(1)}%` : '0%'} du total
-            </p>
-          </div>
 
-          {/* Crédits */}
-          <div className="text-center">
-            <div className="flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mx-auto mb-3">
-              <TrendingUp className="w-8 h-8 text-green-600" />
-            </div>
-            <p className="text-sm font-medium text-gray-600">Total Crédits</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(stats.totalCredit)}</p>
-            <p className="text-sm text-gray-500 mt-1">
-              {stats.totalEntries > 0 ? `${((stats.totalCredit / (stats.totalDebit + stats.totalCredit)) * 100).toFixed(1)}%` : '0%'} du total
-            </p>
-          </div>
-
-          {/* Moyenne */}
-          <div className="text-center">
-            <div className={`flex items-center justify-center w-16 h-16 bg-${color}-100 rounded-full mx-auto mb-3`}>
-              <PieChart className={`w-8 h-8 text-${color}-600`} />
-            </div>
-            <p className="text-sm font-medium text-gray-600">Montant Moyen</p>
-            <p className={`text-2xl font-bold text-${color}-600 mt-1`}>{formatCurrency(stats.avgAmount)}</p>
-            <p className="text-sm text-gray-500 mt-1">par écriture</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

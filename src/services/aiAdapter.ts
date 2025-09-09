@@ -1,4 +1,4 @@
-import { ClientLedger } from '@/types/accounting';
+import { ClientLedger, SupplierLedger } from '@/types/accounting';
 import { llmService } from './llmService';
 
 /**
@@ -35,6 +35,15 @@ export async function enrichEntriesAI<T extends { debit: number; credit: number;
 
 // Compat: fonction dédiée aux clients, utilise l'enrichissement générique
 export async function enrichImportedClientLedger(entries: ClientLedger[]): Promise<ClientLedger[]> {
+  try {
+    return await enrichEntriesAI(entries);
+  } catch {
+    return entries;
+  }
+}
+
+// Compat: fonction dédiée aux fournisseurs, utilise l'enrichissement générique
+export async function enrichImportedSupplierLedger(entries: SupplierLedger[]): Promise<SupplierLedger[]> {
   try {
     return await enrichEntriesAI(entries);
   } catch {
