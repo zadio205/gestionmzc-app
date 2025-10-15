@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import ReportGenerator from '@/components/reports/ReportGenerator';
 import ReportHistory from '@/components/reports/ReportHistory';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { 
   FileText, 
   Plus, 
@@ -18,13 +19,15 @@ const CollaborateurReportsPage = () => {
   const { user, loading } = useAuth();
   const [showGenerator, setShowGenerator] = useState(false);
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  if (!user && !loading) {
+    return <UnauthorizedRedirect />;
   }
 
-  if (!user || user.role !== 'collaborateur') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
+  if (user && user.role !== 'collaborateur') {
+    return <UnauthorizedRedirect />;
   }
+
+  if (!user) return null;
 
   const reportStats = [
     {
@@ -62,7 +65,7 @@ const CollaborateurReportsPage = () => {
   ];
 
   return (
-    <DashboardLayout userRole="collaborateur" userId={user._id}>
+    <DashboardLayout userRole="collaborateur" userId={user.id}>
       <div className="space-y-6">
         {/* En-tête */}
         <div className="flex items-center justify-between">
@@ -187,7 +190,7 @@ const CollaborateurReportsPage = () => {
         </div>
 
         {/* Historique des rapports */}
-        <ReportHistory userRole="collaborateur" userId={user._id} />
+        <ReportHistory userRole="collaborateur" userId={user.id} />
 
         {/* Modal de génération */}
         <ReportGenerator

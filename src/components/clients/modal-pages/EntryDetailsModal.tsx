@@ -1,107 +1,164 @@
-import React from 'react';
-import { X, Eye, AlertTriangle, BadgeCheck } from 'lucide-react';
-import type { ClientLedger } from '@/types/accounting';
+'use client';
 
-interface EntryDetailsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  entry: ClientLedger;
-  formatCurrency: (amount: number) => string;
-  formatDate: (date: Date) => string;
+import React from 'react';
+import { X, Calendar, DollarSign, FileText, User } from 'lucide-react';
+
+interface Entry {
+  _id: string;
+  date: Date | string | null;
+  label?: string;
+  debit: number;
+  credit: number;
+  balance?: number;
+  reference?: string;
+  description?: string;
+  clientName?: string;
+  // Support pour ClientLedger
+  accountName?: string;
+  accountNumber?: string;
 }
 
-const EntryDetailsModal: React.FC<EntryDetailsModalProps> = ({ isOpen, onClose, entry, formatCurrency, formatDate }) => {
-  if (!isOpen) return null;
+interface EntryDetailsModalProps {
+  entry: Entry | null;
+  isOpen: boolean;
+  onClose: () => void;
+  formatCurrency?: (amount: number) => string;
+  formatDate?: (date: Date) => string;
+}
 
-  const isCredit = (entry.credit || 0) > 0;
-  const isDebit = (entry.debit || 0) > 0;
+const EntryDetailsModal: React.FC<EntryDetailsModalProps> = ({ 
+  entry, 
+  isOpen, 
+  onClose, 
+  formatCurrency: providedFormatCurrency,
+  formatDate: providedFormatDate 
+}) => {
+  if (!isOpen || !entry) return null;
+
+  const formatCurrency = providedFormatCurrency || ((amount: number): string => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
+  });
+
+  const formatDate = (date: Date | string | null): string => {
+    if (!date) return 'N/A';
+    if (providedFormatDate && date instanceof Date) {
+      return providedFormatDate(date);
+    }
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return new Intl.DateTimeFormat('fr-FR').format(dateObj);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Eye className="w-5 h-5" /> Détails de l'écriture
-          </h3>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100" aria-label="Fermer">
-            <X className="w-5 h-5 text-gray-600" />
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Détails de l'écriture
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="text-gray-500">Date</div>
-              <div className="font-medium">{entry.date ? formatDate(entry.date) : '-'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Référence</div>
-              <div className="font-medium">{entry.reference || '-'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Client</div>
-              <div className="font-medium">{entry.clientName || '-'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Compte</div>
-              <div className="font-medium">{entry.accountNumber} — {entry.accountName}</div>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-gray-500">Libellé</div>
-            <div className="font-medium break-words">{entry.description || '-'}</div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <div className="text-gray-500">Débit</div>
-              <div className={`font-semibold ${isDebit ? 'text-red-600' : 'text-gray-900'}`}>{entry.debit ? formatCurrency(entry.debit) : '0'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Crédit</div>
-              <div className={`font-semibold ${isCredit ? 'text-green-600' : 'text-gray-900'}`}>{entry.credit ? formatCurrency(entry.credit) : '0'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Solde</div>
-              <div className="font-semibold text-gray-900">{formatCurrency(Math.abs(entry.balance || 0))}</div>
-            </div>
-          </div>
-
-          {entry.aiMeta && (
-            <div className={`rounded-lg p-3 border ${entry.aiMeta.suspiciousLevel === 'high' ? 'bg-red-50 border-red-200' : entry.aiMeta.suspiciousLevel === 'medium' ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                {entry.aiMeta.suspiciousLevel === 'high' ? (
-                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                ) : (
-                  <BadgeCheck className={`w-4 h-4 ${entry.aiMeta.suspiciousLevel === 'medium' ? 'text-yellow-600' : 'text-green-600'}`} />
-                )}
-                <span className="text-sm font-medium">Analyse IA: {entry.aiMeta.suspiciousLevel}</span>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Informations générales */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Informations générales</h3>
+              
+              <div className="flex items-center space-x-3">
+                <Calendar className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-500">Date</p>
+                  <p className="font-medium">{formatDate(entry.date)}</p>
+                </div>
               </div>
-              <div className="text-sm text-gray-700">
-                <div className="font-medium mb-1">Raisons:</div>
-                <ul className="list-disc list-inside space-y-0.5">
-                  {entry.aiMeta.reasons.map((r, idx) => (
-                    <li key={idx}>{r}</li>
-                  ))}
-                </ul>
-                {entry.aiMeta.suggestions?.length ? (
-                  <>
-                    <div className="font-medium mt-2 mb-1">Suggestions:</div>
-                    <ul className="list-disc list-inside space-y-0.5">
-                      {entry.aiMeta.suggestions.map((s, idx) => (
-                        <li key={idx}>{s}</li>
-                      ))}
-                    </ul>
-                  </>
-                ) : null}
+
+              <div className="flex items-center space-x-3">
+                <User className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-500">Client</p>
+                  <p className="font-medium">{entry.clientName || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <FileText className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-500">Référence</p>
+                  <p className="font-medium">{entry.reference || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Montants */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Montants</h3>
+              
+              <div className="flex items-center space-x-3">
+                <DollarSign className="w-5 h-5 text-green-400" />
+                <div>
+                  <p className="text-sm text-gray-500">Débit</p>
+                  <p className="font-medium text-green-600">{formatCurrency(entry.debit)}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                <DollarSign className="w-5 h-5 text-red-400" />
+                <div>
+                  <p className="text-sm text-gray-500">Crédit</p>
+                  <p className="font-medium text-red-600">{formatCurrency(entry.credit)}</p>
+                </div>
+              </div>
+
+              {typeof entry.balance !== 'undefined' && (
+                <div className="flex items-center space-x-3">
+                  <DollarSign className="w-5 h-5 text-blue-400" />
+                  <div>
+                    <p className="text-sm text-gray-500">Solde</p>
+                    <p className={`font-medium ${entry.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(entry.balance)}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Description */}
+          {entry.description && (
+            <div className="mt-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Description</h3>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-gray-700">{entry.description}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Libellé */}
+          {(entry.label || entry.accountName) && (
+            <div className="mt-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Libellé</h3>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-gray-700">{entry.label || entry.accountName || 'N/A'}</p>
               </div>
             </div>
           )}
         </div>
 
-        <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Fermer</button>
+        <div className="flex justify-end p-6 border-t border-gray-200">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+          >
+            Fermer
+          </button>
         </div>
       </div>
     </div>

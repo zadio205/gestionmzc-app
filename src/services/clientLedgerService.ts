@@ -5,6 +5,16 @@ import { AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 /**
  * Service for client ledger business logic
  */
+/**
+ * Format currency amount
+ */
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(amount);
+}
+
 export class ClientLedgerService {
   /**
    * Format currency amount
@@ -200,7 +210,7 @@ L'équipe comptable`;
     }
     return { 
       type: 'success' as const, 
-      label: 'Conforme', 
+      label: 'Facture non réglée', 
       icon: CheckCircle 
     };
   }

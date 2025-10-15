@@ -40,3 +40,39 @@ export type EntryStatus = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 };
+
+export interface LedgerEntry {
+  _id: string;
+  date: Date | string | null;
+  label: string;
+  debit: number;
+  credit: number;
+  balance?: number;
+  type: 'client' | 'supplier' | 'miscellaneous';
+  clientId: string;
+  account?: string;
+  reference?: string;
+  description?: string;
+  category?: string;
+  status?: 'pending' | 'validated' | 'rejected';
+  invoiceNumber?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BalanceItem {
+  _id: string;
+  account: string;
+  accountNumber?: string;
+  label: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  originalDebit?: number;
+  originalCredit?: number;
+  type: 'client' | 'supplier' | 'miscellaneous';
+  category?: string;
+  period: string;
+  clientId: string;
+  lastUpdated: Date;
+}

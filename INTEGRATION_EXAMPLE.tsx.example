@@ -1,0 +1,153 @@
+// Exemple d'intégration du système de justificatifs dans ClientsLedgerContainer
+
+// 1. Import des composants et services
+import GedViewer from '@/components/clients/GedViewer';
+import { JustificatifService } from '@/services/justificatifService';
+
+// 2. Dans le composant, ajouter un état pour afficher la GED
+const [showGed, setShowGed] = useState(false);
+
+// 3. Passer les informations comptables au modal d'upload
+{uploadModalOpen && uploadContext && (
+  <UploadJustificatifModal
+    isOpen={uploadModalOpen}
+    onClose={() => setUploadModalOpen(false)}
+    clientId={uploadContext.clientId}
+    clientName={clientName} // Nom du client
+    entryId={uploadContext.entryId}
+    // Informations comptables pour le classement automatique
+    montant={(() => {
+      const entry = ledgerState.entries.find(e => e._id === uploadContext.entryId);
+      return entry ? (entry.debit || -entry.credit) : 0;
+    })()}
+    reference={(() => {
+      const entry = ledgerState.entries.find(e => e._id === uploadContext.entryId);
+      return entry?.reference;
+    })()}
+    description={(() => {
+      const entry = ledgerState.entries.find(e => e._id === uploadContext.entryId);
+      return entry?.description;
+    })()}
+    dateEcriture={(() => {
+      const entry = ledgerState.entries.find(e => e._id === uploadContext.entryId);
+      return entry?.date ? new Date(entry.date) : undefined;
+    })()}
+    onUploaded={(justificatif) => {
+      // Marquer l'écriture comme justifiée
+      ledgerState.markEntryAsJustified(uploadContext.entryId);
+      // Rafraîchir la GED si elle est ouverte
+      if (showGed) {
+        // Le composant GedViewer se rafraîchira automatiquement
+      }
+    }}
+  />
+)}
+
+// 4. Ajouter un bouton pour afficher la GED
+<button
+  onClick={() => setShowGed(!showGed)}
+  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+>
+  {showGed ? 'Masquer la GED' : 'Voir les justificatifs'}
+</button>
+
+// 5. Afficher le composant GedViewer
+{showGed && (
+  <div className="mt-6">
+    <GedViewer 
+      clientId={clientId}
+      clientName={clientName}
+      onRefresh={() => {
+        // Optionnel : rafraîchir le grand livre
+        ledgerState.fetchEntries();
+      }}
+    />
+  </div>
+)}
+
+// ===================================
+// Exemple complet dans ModernLedgerDisplay
+// ===================================
+
+// Ajouter un badge "Justifié" sur les écritures qui ont des justificatifs
+{entry.hasJustificatif && (
+  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+    <CheckCircle className="w-3 h-3" />
+    Justifié
+  </span>
+)}
+
+// ===================================
+// Vérification automatique des justificatifs
+// ===================================
+
+// Dans useClientLedgerState ou un effet
+useEffect(() => {
+  const checkJustificatifs = async () => {
+    if (!clientId || entries.length === 0) return;
+    
+    try {
+      // Récupérer tous les justificatifs du client
+      const justificatifs = await JustificatifService.getJustificatifsByClient(clientId);
+      const allJustificatifs = [...justificatifs.achats, ...justificatifs.ventes];
+      
+      // Créer un Set des entryId qui ont des justificatifs
+      const entriesWithJustificatifs = new Set(
+        allJustificatifs.map(j => j.entryId)
+      );
+      
+      // Mettre à jour les écritures avec l'info hasJustificatif
+      const updatedEntries = entries.map(entry => ({
+        ...entry,
+        hasJustificatif: entriesWithJustificatifs.has(entry._id)
+      }));
+      
+      setEntries(updatedEntries);
+    } catch (error) {
+      console.error('Erreur lors de la vérification des justificatifs:', error);
+    }
+  };
+  
+  checkJustificatifs();
+}, [clientId, entries.length]);
+
+// ===================================
+// Statistiques dans l'AnalysisPanel
+// ===================================
+
+// Calculer le taux de justification
+const calculateJustificationRate = async () => {
+  const justificatifs = await JustificatifService.getJustificatifsByClient(clientId);
+  const totalJustificatifs = justificatifs.achats.length + justificatifs.ventes.length;
+  const totalEntries = entries.length;
+  
+  return {
+    total: totalJustificatifs,
+    rate: totalEntries > 0 ? (totalJustificatifs / totalEntries) * 100 : 0,
+    achats: justificatifs.achats.length,
+    ventes: justificatifs.ventes.length,
+  };
+};
+
+// Afficher dans le panel
+<div className="p-4 bg-blue-50 rounded-lg">
+  <h4 className="font-medium text-gray-900 mb-2">📁 Justificatifs</h4>
+  <div className="grid grid-cols-2 gap-2 text-sm">
+    <div>
+      <span className="text-gray-600">Taux de justification:</span>
+      <span className="ml-2 font-semibold">{stats.justification.rate.toFixed(1)}%</span>
+    </div>
+    <div>
+      <span className="text-gray-600">Total:</span>
+      <span className="ml-2 font-semibold">{stats.justification.total}</span>
+    </div>
+    <div>
+      <span className="text-gray-600">Achats:</span>
+      <span className="ml-2 font-semibold">{stats.justification.achats}</span>
+    </div>
+    <div>
+      <span className="text-gray-600">Ventes:</span>
+      <span className="ml-2 font-semibold">{stats.justification.ventes}</span>
+    </div>
+  </div>
+</div>

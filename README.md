@@ -1,11 +1,11 @@
 # Masyzarac - Application de Gestion Comptable
 
-Application web de gestion comptable et documentaire développée avec Next.js, TypeScript et MongoDB.
+Application web de gestion comptable et documentaire développée avec Next.js, TypeScript et Supabase.
 
 ## 🚀 Fonctionnalités
 
 ### Authentification et Gestion des Utilisateurs
-- ✅ Système d'authentification avec NextAuth.js
+- ✅ Système d'authentification avec Supabase Auth
 - ✅ Gestion des rôles (Admin, Collaborateur, Client)
 - ✅ Inscription et connexion sécurisées
 - ✅ Sessions utilisateur persistantes
@@ -36,8 +36,8 @@ Application web de gestion comptable et documentaire développée avec Next.js, 
 
 - **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
-- **Base de données**: MongoDB avec Mongoose
-- **Authentification**: NextAuth.js
+- **Base de données**: Supabase (PostgreSQL)
+- **Authentification**: Supabase Auth
 - **UI Components**: Headless UI, Heroicons
 - **Validation**: Zod, React Hook Form
 
@@ -61,16 +61,18 @@ cp .env.local.example .env.local
 
 Modifier le fichier `.env.local` avec vos configurations :
 ```env
-MONGODB_URI=mongodb://localhost:27017/masyzarac
+NEXT_PUBLIC_SUPABASE_URL=votre-url-supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=votre-cle-anon-supabase
+SUPABASE_SERVICE_ROLE_KEY=votre-cle-service-supabase
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-secret-key-here
 JWT_SECRET=your-jwt-secret-here
 ```
 
-4. Démarrer MongoDB (si local)
-```bash
-mongod
-```
+4. Configurer Supabase
+- Créer un projet sur [supabase.com](https://supabase.com)
+- Exécuter les scripts SQL dans le dossier `scripts/`
+- Configurer les RLS (Row Level Security) policies
 
 5. Lancer l'application en développement
 ```bash
@@ -95,7 +97,9 @@ src/
 │   ├── dashboard/        # Composants de tableau de bord
 │   └── ...
 ├── lib/                  # Utilitaires et configurations
-├── models/               # Modèles Mongoose
+├── lib/                  # Utilitaires et configurations Supabase
+├── services/             # Services métier
+└── types/                # Types TypeScript
 └── types/                # Types TypeScript
 ```
 
@@ -125,10 +129,10 @@ src/
 2. Configurer les variables d'environnement
 3. Déployer automatiquement
 
-### MongoDB Atlas
-1. Créer un cluster MongoDB Atlas
-2. Configurer les accès réseau
-3. Mettre à jour `MONGODB_URI` dans les variables d'environnement
+### Supabase
+1. Créer un projet sur [supabase.com](https://supabase.com)
+2. Configurer les tables avec les scripts SQL dans `scripts/`
+3. Mettre à jour les variables d'environnement Supabase
 
 #### Rôles via variables d'environnement (optionnel)
 

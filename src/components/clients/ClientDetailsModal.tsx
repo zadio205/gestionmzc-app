@@ -4,10 +4,10 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, BarChart3, Users, Truck, FileText } from 'lucide-react';
 import { Client } from '@/types';
-import BalancePage from './modal-pages/BalancePage';
-import ClientsLedgerPage from './modal-pages/ClientsLedgerPage';
-import SuppliersLedgerPage from './modal-pages/SuppliersLedgerPage';
-import MiscellaneousLedgerPage from './modal-pages/MiscellaneousLedgerPage';
+import BalancePage from '@/components/ledgers/balance/BalancePage';
+import ClientsLedgerPage from '@/components/ledgers/shared/ClientsLedgerPage';
+import SuppliersLedgerPage from '@/components/ledgers/supplier/SuppliersLedgerPage';
+import MiscellaneousLedgerPage from '@/components/ledgers/miscellaneous/MiscellaneousLedgerPage';
 
 interface ClientDetailsModalProps {
   client: Client;
@@ -36,8 +36,6 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
     }
   }, [isOpen, initialTab]);
 
-  if (!isOpen) return null;
-
   // Fermer avec la touche Échap
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -50,6 +48,8 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
       return () => window.removeEventListener('keydown', onKey);
     }
   }, [onClose, isOpen]);
+
+  if (!isOpen) return null;
 
   const tabs = [
     {
@@ -85,7 +85,7 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
       case 'clients':
         return <ClientsLedgerPage clientId={client._id} />;
       case 'suppliers':
-        return <SuppliersLedgerPage clientId={client._id} />;
+        return <SuppliersLedgerPage clientId={client._id} clientName={client.name} />;
       case 'miscellaneous':
         return <MiscellaneousLedgerPage clientId={client._id} />;
       default:
@@ -97,7 +97,7 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Overlay */}
       <div
-        className="absolute inset-0 bg-black bg-opacity-50"
+        className="absolute inset-0 bg-gray-900/20 backdrop-blur-sm"
         onClick={onClose}
       />
       
@@ -116,7 +116,7 @@ const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <X className="w-6 h-6 text-gray-500" />
+            <X className="w-6 h-6 text-gray-600" />
           </button>
         </div>
 

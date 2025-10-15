@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { User, Mail, Phone, MapPin, Calendar, Shield, Camera, Save, Key } from 'lucide-react';
 
 const AdminProfile = () => {
@@ -10,16 +11,18 @@ const AdminProfile = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  if (!user && !loading) {
+    return <UnauthorizedRedirect />;
   }
 
-  if (!user || user.role !== 'admin') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
+  if (user && (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return <UnauthorizedRedirect />;
   }
+
+  if (!user) return null;
 
   return (
-    <DashboardLayout userRole="admin" userId={user._id}>
+    <DashboardLayout userRole="admin" userId={user.id}>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Mon Profil</h1>

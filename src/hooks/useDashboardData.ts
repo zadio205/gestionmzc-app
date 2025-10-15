@@ -1,162 +1,75 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { logger } from '@/utils/logger';
+import { dashboardService } from '@/services/dashboardService';
+import type {
+  DashboardStats,
+  Activity,
+  Task,
+  ClientOverview,
+  Message,
+  Notification
+} from '@/services/dashboardService';
+import {
+  DEFAULT_DASHBOARD_STATS,
+  DEFAULT_ACTIVITIES,
+  DEFAULT_CLIENTS,
+  DEFAULT_TASKS,
+  DEFAULT_MESSAGES,
+  DEFAULT_NOTIFICATIONS
+} from '@/constants/dashboardDefaults';
 
-export interface DashboardStats {
-  totalUsers: number;
-  activeClients: number;
-  totalDocuments: number;
-  unreadMessages: number;
-  pendingTasks: number;
-  systemAlerts: number;
-  myClients?: number;
-  pendingDocuments?: number;
-  completedTasks?: number;
-  thisWeekTasks?: number;
-}
-
-export interface Activity {
-  id: string;
-  type: 'document' | 'message' | 'user' | 'task' | 'alert';
-  title: string;
-  description: string;
-  timestamp: string;
-  user?: string;
-  client?: string;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'pending' | 'in_progress' | 'completed';
-  dueDate?: string;
-  assignedTo?: string;
-  client?: string;
-  aiSuggestion?: string;
-}
-
-export interface ClientOverview {
-  id: string;
-  name: string;
-  industry?: string;
-  documentsCount: number;
-  messagesCount: number;
-  alertsCount: number;
-  lastActivity: string;
-  status: 'active' | 'inactive' | 'pending';
-  aiRiskScore?: number;
-  aiRecommendations?: string[];
-}
-
-export interface Message {
-  id: string;
-  sender: string;
-  senderRole: 'admin' | 'collaborateur' | 'client';
-  subject: string;
-  preview: string;
-  timestamp: string;
-  isRead: boolean;
-  client?: string;
-  aiSentiment?: 'positive' | 'neutral' | 'negative';
-  aiPriority?: 'low' | 'medium' | 'high';
-}
-
-export interface Notification {
-  id: string;
-  type: 'info' | 'warning' | 'error' | 'success';
-  title: string;
-  message: string;
-  timestamp: string;
-  isRead: boolean;
-  actionUrl?: string;
-  actionText?: string;
-  aiGenerated?: boolean;
-}
+// Les types sont maintenant importés depuis dashboardService.ts
 
 export const useDashboardData = (userRole: 'admin' | 'collaborateur', userId?: string) => {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    activeClients: 0,
-    totalDocuments: 0,
-    unreadMessages: 0,
-    pendingTasks: 0,
-    systemAlerts: 0
-  });
-
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [clients, setClients] = useState<ClientOverview[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>(DEFAULT_DASHBOARD_STATS);
+  const [activities, setActivities] = useState<Activity[]>(DEFAULT_ACTIVITIES);
+  const [tasks, setTasks] = useState<Task[]>(DEFAULT_TASKS);
+  const [clients, setClients] = useState<ClientOverview[]>(DEFAULT_CLIENTS);
+  const [messages, setMessages] = useState<Message[]>(DEFAULT_MESSAGES);
+  const [notifications, setNotifications] = useState<Notification[]>(DEFAULT_NOTIFICATIONS);
+  const [loading, setLoading] = useState(false); // Changé à false pour rendu immédiat
   const [error, setError] = useState<string | null>(null);
 
   const fetchDashboardData = async () => {
+    if (!userId) {
+      setError('ID utilisateur requis');
+      setLoading(false);
+      return;
+    }
+
     try {
-      setLoading(true);
+      // Afficher immédiatement les données mockées pour un rendu instantané
+      setLoading(false);
+
+      // Appeler les API routes au lieu d'appeler directement le service
+      // car les variables d'environnement serveur ne sont pas disponibles côté client
+      const baseUrl = typeof window !== 'undefined' ? '' : process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
       
-      // Simuler des appels API avec données enrichies par IA
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Charger les stats en priorité (non-bloquant)
+      fetch(`${baseUrl}/api/dashboard/stats?userId=${userId}&userRole=${userRole}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => data && setStats(data))
+        .catch(err => logger.error('Error fetching stats', { userId }, err));
 
+      // Charger les activités en arrière-plan
+      fetch(`${baseUrl}/api/dashboard/activities?userId=${userId}&userRole=${userRole}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => data && setActivities(data))
+        .catch(err => logger.error('Error fetching activities', { userId }, err));
+
+      // Charger les clients seulement pour les admins
       if (userRole === 'admin') {
-        setStats({
-          totalUsers: 24,
-          activeClients: 18,
-          totalDocuments: 156,
-          unreadMessages: 7,
-          pendingTasks: 5,
-          systemAlerts: 2
-        });
+        fetch(`${baseUrl}/api/dashboard/clients?userId=${userId}&userRole=${userRole}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => data && setClients(data))
+          .catch(err => logger.error('Error fetching clients', { userId }, err));
+      }
 
-        setActivities([
-          {
-            id: '1',
-            type: 'user',
-            title: 'Nouvel utilisateur inscrit',
-            description: 'Marie Dubois a créé un compte collaborateur',
-            timestamp: 'Il y a 2 heures',
-            user: 'Marie Dubois'
-          },
-          {
-            id: '2',
-            type: 'alert',
-            title: 'IA: Anomalie détectée',
-            description: 'Pic inhabituel d\'activité sur le serveur',
-            timestamp: 'Il y a 1 heure'
-          }
-        ]);
-
-        setClients([
-          {
-            id: '1',
-            name: 'SARL Exemple',
-            industry: 'Commerce',
-            documentsCount: 15,
-            messagesCount: 3,
-            alertsCount: 1,
-            lastActivity: 'Il y a 2 heures',
-            status: 'active',
-            aiRiskScore: 0.2,
-            aiRecommendations: ['Révision comptable recommandée', 'Optimisation fiscale possible']
-          }
-        ]);
-
-      } else {
-        setStats({
-          totalUsers: 0,
-          activeClients: 0,
-          totalDocuments: 0,
-          unreadMessages: 5,
-          pendingTasks: 7,
-          systemAlerts: 0,
-          myClients: 12,
-          pendingDocuments: 8,
-          completedTasks: 23,
-          thisWeekTasks: 4
-        });
-
+      // Pour les collaborateurs, ajouter les données spécifiques
+      if (userRole === 'collaborateur') {
+        // TODO: Implémenter la récupération des tâches et messages pour les collaborateurs
         setTasks([
           {
             id: '1',
@@ -165,13 +78,14 @@ export const useDashboardData = (userRole: 'admin' | 'collaborateur', userId?: s
             priority: 'high',
             status: 'pending',
             dueDate: '2024-12-15',
-            assignedTo: 'Collaborateur',
+            assignedTo: userId,
             client: 'SARL Exemple',
             aiSuggestion: 'IA suggère de prioriser cette tâche - échéance proche'
           }
         ]);
       }
 
+      // Messages et notifications (mockés pour l'instant)
       setMessages([
         {
           id: '1',
@@ -203,8 +117,7 @@ export const useDashboardData = (userRole: 'admin' | 'collaborateur', userId?: s
 
     } catch (err) {
       setError('Erreur lors du chargement des données');
-      console.error(err);
-    } finally {
+      logger.error('Error loading dashboard data', { userId, userRole }, err instanceof Error ? err : new Error(String(err)));
       setLoading(false);
     }
   };
@@ -255,7 +168,12 @@ export const useDashboardData = (userRole: 'admin' | 'collaborateur', userId?: s
       dismissNotification,
       markMessageAsRead,
       updateTaskStatus,
-      refreshData: fetchDashboardData
+      refreshData: async () => {
+        if (userId) {
+          await dashboardService.invalidateCache(userId, userRole);
+          await fetchDashboardData();
+        }
+      }
     }
   };
 };

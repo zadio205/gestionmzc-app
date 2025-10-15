@@ -2,47 +2,67 @@
 
 import { useState, useEffect } from 'react';
 import { supabaseBrowser } from '@/lib/supabase/client';
+import type { AppUser, UserRole } from '@/types/auth';
+import { normalizeUserRole } from '@/utils/role';
+import { logger } from '@/utils/logger';
+import AuthLoadingScreen from '@/components/ui/AuthLoadingScreen';
 
-interface AppUser {
-  _id: string; // on conserve le champ attendu par l'app
-  email: string;
-  name: string;
-  role: 'admin' | 'collaborateur' | 'client';
-  clientId?: string;
-  avatar?: string;
-}
+/**
+ * Récupère le profil complet d'un utilisateur depuis la base de données
+ */
+async function fetchUserProfile(userId: string): Promise<AppUser | null> {
+  try {
+    const { data: { user } } = await supabaseBrowser.auth.getUser();
 
-function mapSupabaseUser(u: any): AppUser | null {
-  if (!u) return null;
-  const meta = u.user_metadata || {};
-  // Rôle par défaut depuis les metadata (client par défaut)
-  let role: AppUser['role'] = (meta.role as AppUser['role']) || 'admin';
+    if (!user) {
+      return null;
+    }
 
-  // Option de surclassement par emails (variables publiques, compilées côté client)
-  const email = (u.email || '').toLowerCase();
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-  const collabEmails = (process.env.NEXT_PUBLIC_COLLABORATEUR_EMAILS || '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
+    const mergedMetadata = {
+      ...(user.app_metadata || {}),
+      ...(user.user_metadata || {}),
+    } as Record<string, unknown>;
 
-  if (email && adminEmails.includes(email)) {
-    role = 'admin';
-  } else if (email && collabEmails.includes(email)) {
-    role = 'collaborateur';
+    const { data: profile } = await supabaseBrowser
+      .from('profiles')
+      .select('role, full_name, admin_id, client_id, avatar_url, metadata')
+      .eq('id', userId)
+      .single();
+
+    if (!profile) {
+      return {
+        id: user.id,
+        email: user.email || '',
+        name: (mergedMetadata.full_name as string | undefined)
+          || (mergedMetadata.name as string | undefined)
+          || user.email?.split('@')[0]
+          || 'Utilisateur',
+        role: normalizeUserRole(mergedMetadata.role),
+        adminId: mergedMetadata.admin_id as string | undefined,
+        clientId: mergedMetadata.client_id as string | undefined,
+        avatar: (mergedMetadata.avatar_url as string | undefined)
+          || (mergedMetadata.avatar as string | undefined),
+        metadata: mergedMetadata,
+      };
+    }
+
+    return {
+      id: user.id,
+      email: user.email || '',
+      name: profile.full_name || user.email?.split('@')[0] || 'Utilisateur',
+      role: normalizeUserRole(profile.role),
+      adminId: profile.admin_id,
+      clientId: profile.client_id,
+      avatar: profile.avatar_url,
+      metadata: profile.metadata || mergedMetadata,
+    };
+  } catch (error) {
+    logger.error('Error in fetchUserProfile', { userId }, error instanceof Error ? error : new Error(String(error)));
+    return null;
   }
-  return {
-    _id: u.id,
-    email: u.email,
-    name: meta.name || u.email?.split('@')[0] || 'Utilisateur',
-    role,
-    clientId: meta.clientId,
-    avatar: meta.avatar,
-  };
 }
+
+
 
 export const useAuth = () => {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -60,11 +80,29 @@ export const useAuth = () => {
 
     const load = async () => {
       try {
-        const { data } = await supabaseBrowser.auth.getUser();
+        const { data, error } = await supabaseBrowser.auth.getUser();
         if (!isMounted) return;
-        setUser(mapSupabaseUser(data.user));
+        
+        // Si le token est invalide, nettoyer la session
+        if (error) {
+          if (error.message.includes('Refresh Token') || error.message.includes('Invalid')) {
+            await supabaseBrowser.auth.signOut();
+            logger.warn('Invalid token detected, clearing session', { error: error.message });
+          } else {
+            logger.error('Auth check failed', {}, error);
+          }
+          setUser(null);
+          return;
+        }
+        
+        if (data.user) {
+          const profile = await fetchUserProfile(data.user.id);
+          setUser(profile);
+        } else {
+          setUser(null);
+        }
       } catch (e) {
-        console.error('Auth check failed:', e);
+        logger.error('Auth check failed', {}, e instanceof Error ? e : new Error(String(e)));
         if (!isMounted) return;
         setUser(null);
       } finally {
@@ -74,8 +112,21 @@ export const useAuth = () => {
 
     load();
 
-    const { data: sub } = supabaseBrowser.auth.onAuthStateChange((_event, session) => {
-      setUser(mapSupabaseUser(session?.user || null));
+    const { data: sub } = supabaseBrowser.auth.onAuthStateChange(async (event, session) => {
+      // Gérer les erreurs de token
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        logger.warn('Token refresh failed, clearing session');
+        await supabaseBrowser.auth.signOut();
+        setUser(null);
+        return;
+      }
+
+      if (session?.user) {
+        const profile = await fetchUserProfile(session.user.id);
+        setUser(profile);
+      } else {
+        setUser(null);
+      }
     });
 
     return () => {
@@ -87,15 +138,28 @@ export const useAuth = () => {
   const logout = async () => {
     try {
       await supabaseBrowser.auth.signOut();
+      try {
+        await fetch('/api/auth/session', {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+      } catch (sessionError) {
+        logger.error('Erreur lors de la suppression de la session serveur', {}, sessionError instanceof Error ? sessionError : new Error(String(sessionError)));
+      }
       setUser(null);
-      // Redirection immédiate vers la page de connexion
+      // Laisser le middleware gérer la redirection
       if (typeof window !== 'undefined') {
         window.location.href = '/auth/signin';
       }
     } catch (error) {
-      console.error('Logout failed:', error);
+      logger.error('Logout failed', {}, error instanceof Error ? error : new Error(String(error)));
     }
   };
 
-  return { user, loading: loading || !isClient, logout };
+  return { 
+    user, 
+    loading: loading || !isClient, 
+    logout,
+    AuthLoadingScreen
+  };
 };

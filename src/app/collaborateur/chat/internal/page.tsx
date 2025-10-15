@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { Send, Users, Search } from 'lucide-react';
 
 const InternalChat = () => {
@@ -20,17 +21,19 @@ const InternalChat = () => {
 
   const messages = [
     { id: '1', senderId: '1', senderName: 'Admin Principal', content: 'Bonjour ! N\'oubliez pas la réunion équipe demain à 10h.', timestamp: '15:30', isOwn: false },
-    { id: '2', senderId: user?._id, senderName: user?.name, content: 'Merci pour le rappel ! J\'ai noté.', timestamp: '15:32', isOwn: true },
+    { id: '2', senderId: user?.id, senderName: user?.name, content: 'Merci pour le rappel ! J\'ai noté.', timestamp: '15:32', isOwn: true },
     { id: '3', senderId: '1', senderName: 'Admin Principal', content: 'Parfait. Bonne fin de journée !', timestamp: '15:35', isOwn: false },
   ];
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  if (!user && !loading) {
+    return <UnauthorizedRedirect />;
   }
 
-  if (!user || user.role !== 'collaborateur') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
+  if (user && user.role !== 'collaborateur') {
+    return <UnauthorizedRedirect />;
   }
+
+  if (!user) return null;
 
   const handleSendMessage = () => {
     if (message.trim() && selectedUser) {
@@ -44,7 +47,7 @@ const InternalChat = () => {
   );
 
   return (
-    <DashboardLayout userRole="collaborateur" userId={user._id}>
+    <DashboardLayout userRole="collaborateur" userId={user.id}>
       <div className="h-full flex bg-white rounded-lg shadow">
         {/* Liste des utilisateurs */}
         <div className="w-1/3 border-r border-gray-200 flex flex-col">

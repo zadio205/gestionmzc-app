@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { Search, Eye, Mail, Phone, MessageCircle, FileText, Calendar } from 'lucide-react';
 import ClientDetailsModal from '@/components/clients/ClientDetailsModal';
 import { Client } from '@/types';
@@ -26,14 +27,6 @@ const CollaborateurClients = () => {
 
   // Plus de données d'exemple
   const clients: ClientWithExtras[] = [];
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
-  }
-
-  if (!user || user.role !== 'collaborateur') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
-  }
 
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -66,8 +59,7 @@ const CollaborateurClients = () => {
       setSelectedClient(found);
       setShowDetailsModal(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [clients]); // Add clients to dependency array
 
   // Si les clients sont chargés plus tard, retenter depuis l'URL
   useEffect(() => {
@@ -93,8 +85,19 @@ const CollaborateurClients = () => {
     return undefined;
   }, []);
 
+  // Handle early returns after all hooks
+  if (!user && !loading) {
+    return <UnauthorizedRedirect />;
+  }
+
+  if (user && user.role !== 'collaborateur') {
+    return <UnauthorizedRedirect />;
+  }
+
+  if (!user) return null;
+
   return (
-    <DashboardLayout userRole="collaborateur" userId={user._id}>
+    <DashboardLayout userRole="collaborateur" userId={user.id}>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Mes clients</h1>

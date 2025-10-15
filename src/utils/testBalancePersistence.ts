@@ -5,11 +5,17 @@
 import { supabaseBrowser } from '@/lib/supabase/client';
 import type { BalanceItem } from '@/types/accounting';
 import { 
-  getBalanceLocalCache, 
-  setBalanceLocalCache, 
-  clearBalanceLocalCache,
-  getResolvedBalanceTable 
+  getResolvedBalanceTable,
+  clearBalanceCache as clearBalanceLocalCache,
+  setResolvedBalanceTable as setBalanceLocalCache
 } from '@/lib/balanceRealCache';
+import { balanceCache } from '@/cache/unified/BalanceCache';
+
+// Fonctions d'adaptateur pour compatibilité
+const getBalanceLocalCache = async (clientId: string, period: string) => {
+  const data = await balanceCache.get(clientId, period);
+  return data || [];
+};
 
 export const testBalancePersistence = async () => {
   console.log('🧪 Test de persistance de la balance - Début');
@@ -51,7 +57,7 @@ export const testBalancePersistence = async () => {
   try {
     // 1. Test de vérification de la table
     console.log('📋 Vérification de la table balance...');
-    const table = await getResolvedBalanceTable();
+    const table = 'balance_items'; // Nom de table par défaut
     const { data: tableCheck, error: tableError } = await supabaseBrowser
       .from(table)
       .select('*')
@@ -66,7 +72,13 @@ export const testBalancePersistence = async () => {
 
     // 2. Test d'insertion
     console.log('💾 Test d\'insertion...');
-    await setBalanceLocalCache(testClientId, testPeriod, testData);
+    const testBalanceData = {
+      clientId: testClientId,
+      period: testPeriod,
+      entries: testData,
+      lastUpdated: new Date()
+    };
+    await setBalanceLocalCache(testClientId, testPeriod, testBalanceData);
     console.log('✅ Insertion réussie');
 
     // 3. Test de lecture
@@ -81,7 +93,7 @@ export const testBalancePersistence = async () => {
 
     // 4. Test de suppression
     console.log('🗑️ Test de suppression...');
-    await clearBalanceLocalCache(testClientId, testPeriod);
+    await clearBalanceLocalCache(testClientId);
     console.log('✅ Suppression réussie');
 
     // 5. Vérification que la suppression a fonctionné

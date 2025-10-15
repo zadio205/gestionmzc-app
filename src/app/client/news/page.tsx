@@ -3,20 +3,23 @@
 import React from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 
 const ClientNews = () => {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  if (!user && !loading) {
+    return <UnauthorizedRedirect />;
   }
 
-  if (!user || user.role !== 'client') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
+  if (user && user.role !== 'client') {
+    return <UnauthorizedRedirect />;
   }
+
+  if (!user) return null;
 
   return (
-    <DashboardLayout userRole="client" userId={user._id} clientId={user.clientId}>
+    <DashboardLayout userRole="client" userId={user.id} clientId={user.clientId ?? undefined}>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Actualités</h1>

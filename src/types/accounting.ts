@@ -6,11 +6,15 @@ export interface BalanceItem {
   _id: string;
   accountNumber: string;
   accountName: string;
+  account?: string; // Alias pour accountNumber
+  label?: string; // Alias pour accountName
   debit: number;
   credit: number;
   balance: number;
   clientId: string;
   period: string;
+  type?: string; // Type de compte
+  category?: string; // Catégorie de compte
   createdAt: Date;
   importIndex?: number; // Index du fichier importé
 }

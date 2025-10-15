@@ -96,3 +96,6 @@ export interface Simulation {
 
 // Export accounting types
 export * from './accounting';
+
+// Export justificatif types
+export * from './justificatif';

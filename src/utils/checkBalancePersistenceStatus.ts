@@ -20,7 +20,7 @@ export const checkBalancePersistenceStatus = async () => {
   try {
     // 1. Test de connexion Supabase
     console.log('🔌 Test de connexion Supabase...');
-  const resolved = await getResolvedBalanceTable().catch(() => process.env.NEXT_PUBLIC_BALANCE_TABLE || 'balance_items');
+  const resolved = process.env.NEXT_PUBLIC_BALANCE_TABLE || 'balance_items';
     const { data: connectionTest, error: connectionError } = await supabaseBrowser
       .from(resolved)
       .select('count')

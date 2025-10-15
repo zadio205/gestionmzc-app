@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/utils/logger';
+
 export interface AIInsight {
   id: string;
   type: 'recommendation' | 'alert' | 'optimization' | 'prediction';
@@ -40,9 +42,11 @@ class AIService {
         predictedIssues: this.predictIssues(content)
       };
     } catch (error) {
-      console.error('Erreur analyse IA:', error);
-      throw error;
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Erreur analyse IA', { error: err, sender });
+      throw err;
     }
+
   }
 
   // Génération d'insights IA pour le tableau de bord
@@ -118,9 +122,11 @@ class AIService {
 
       return insights;
     } catch (error) {
-      console.error('Erreur génération insights:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Erreur génération insights', { error: err, userRole });
       return [];
     }
+
   }
 
   // Analyse prédictive des tâches
@@ -134,9 +140,11 @@ class AIService {
         riskLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low'
       }));
     } catch (error) {
-      console.error('Erreur prédiction tâches:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Erreur prédiction tâches', { error: err });
       return [];
     }
+
   }
 
   // Génération automatique de notifications intelligentes
@@ -163,9 +171,11 @@ class AIService {
 
       return notifications;
     } catch (error) {
-      console.error('Erreur génération notifications:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Erreur génération notifications', { error: err, role: userContext?.role });
       return [];
     }
+
   }
 
   // Analyse de sentiment simplifiée

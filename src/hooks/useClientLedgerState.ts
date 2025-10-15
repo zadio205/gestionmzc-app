@@ -5,8 +5,17 @@ import { useNotification } from '@/contexts/NotificationContextSimple';
 import { CSVSanitizer } from '@/utils/csvSanitizer';
 import { enrichImportedClientLedger } from '@/services/aiAdapter';
 import { dedupBySignature, getClientLedgerSignature } from '@/utils/ledgerDedup';
-import { listClientLedger, saveClientLedger, clearClientLedger } from '@/services/clientLedgerApi';
-import { getLedgerCache, setLedgerCache, clearLedgerCache } from '@/lib/ledgerCache';
+import { clientLedgerRepository } from '@/repositories/ClientLedgerRepository';
+import { createCacheFromPreset } from '@/lib/cache';
+import {
+  getLedgerCache,
+  setLedgerCache,
+  clearLedgerCache,
+  listClientLedger,
+  saveClientLedger,
+  clearClientLedger
+} from '@/lib/ledgerCache';
+import { ledgerEntriesToClientLedgers, clientLedgersToLedgerEntries } from '@/utils/ledgerTypeAdapter';
 
 interface LedgerSummary {
   totalDebit: number;
@@ -21,26 +30,33 @@ export const useClientLedgerState = (clientId: string) => {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
   const [llmSuggestions, setLlmSuggestions] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<'accountNumber' | 'accountName'>('accountNumber');
   const { showNotification } = useNotification();
-  
 
   const allEntries = useMemo(() => (
     [...importedEntries]
   ), [importedEntries]);
 
   const filteredEntries = useMemo(() => {
-    // Comparateur: tri par N° Compte (accountNumber) ascendant puis par date croissante
-    const compareByAccountNumber = (a: ClientLedger, b: ClientLedger) => {
-      const an = (a.accountNumber || '').toString();
-      const bn = (b.accountNumber || '').toString();
-      const cmp = an.localeCompare(bn, undefined, { numeric: true, sensitivity: 'base' });
+    // Comparateur: tri par N° Compte (accountNumber) ou par Nom de compte (clientName) ascendant puis par date croissante
+    const compareFn = (a: ClientLedger, b: ClientLedger) => {
+      let cmp = 0;
+      if (sortBy === 'accountNumber') {
+        const an = (a.accountNumber || '').toString();
+        const bn = (b.accountNumber || '').toString();
+        cmp = an.localeCompare(bn, undefined, { numeric: true, sensitivity: 'base' });
+      } else {
+        const an = (a.clientName || '').toString();
+        const bn = (b.clientName || '').toString();
+        cmp = an.localeCompare(bn, undefined, { sensitivity: 'base' });
+      }
       if (cmp !== 0) return cmp;
       const ad = a.date ? new Date(a.date).getTime() : 0;
       const bd = b.date ? new Date(b.date).getTime() : 0;
       return ad - bd;
     };
 
-    if (!searchTerm.trim()) return [...allEntries].sort(compareByAccountNumber);
+    if (!searchTerm.trim()) return [...allEntries].sort(compareFn);
     
     const term = searchTerm.toLowerCase();
     return allEntries
@@ -49,8 +65,16 @@ export const useClientLedgerState = (clientId: string) => {
         (entry.description || '').toLowerCase().includes(term) ||
         (entry.reference || '').toLowerCase().includes(term)
       )
-      .sort(compareByAccountNumber);
-  }, [allEntries, searchTerm]);
+      .sort(compareFn);
+  }, [allEntries, searchTerm, sortBy]);
+
+  // Calculer les entrées visibles (avec montants non nuls)
+  const visibleEntries = useMemo(() => {
+    return filteredEntries.filter(entry => {
+      const hasAmount = (entry.debit || 0) !== 0 || (entry.credit || 0) !== 0;
+      return hasAmount;
+    });
+  }, [filteredEntries]);
 
   const summary: LedgerSummary = useMemo(() => {
     const debit = filteredEntries.reduce((sum, entry) => sum + entry.debit, 0);
@@ -77,15 +101,15 @@ export const useClientLedgerState = (clientId: string) => {
   // Load persisted entries on mount (prioritize in-memory cache, then DB)
   useEffect(() => {
     let cancelled = false;
-  const load = async () => {
+    const load = async () => {
       try {
         if (!clientId) return;
         // 1) Cache mémoire si disponible (évite le flicker en navigation intra-SPA)
         const cached = getLedgerCache(clientId);
         if (cached && !cancelled) {
-          setImportedEntries(cached);
+          setImportedEntries(ledgerEntriesToClientLedgers(cached));
         }
-  const { entries } = await listClientLedger(clientId);
+        const { entries } = await listClientLedger(clientId);
         if (cancelled) return;
         // Map DB entries to ClientLedger type (ensure Date)
         const mapped: ClientLedger[] = (entries || []).map((e: any) => ({
@@ -109,7 +133,7 @@ export const useClientLedgerState = (clientId: string) => {
         // Si la DB renvoie vide mais on a un cache non vide, on garde le cache
         const cachedAfter = getLedgerCache(clientId);
         if (mapped.length === 0 && cachedAfter && cachedAfter.length > 0) {
-          setImportedEntries(cachedAfter);
+          setImportedEntries(ledgerEntriesToClientLedgers(cachedAfter));
           setLedgerCache(clientId, cachedAfter);
           showNotification?.({
             type: 'warning',
@@ -119,7 +143,7 @@ export const useClientLedgerState = (clientId: string) => {
           });
         } else {
           setImportedEntries(mapped);
-          setLedgerCache(clientId, mapped);
+          setLedgerCache(clientId, clientLedgersToLedgerEntries(mapped));
         }
       } catch (err) {
         console.warn('Chargement grand livre échoué:', err);
@@ -137,8 +161,8 @@ export const useClientLedgerState = (clientId: string) => {
 
   const reloadFromDb = useCallback(async () => {
     try {
-  const { entries } = await listClientLedger(clientId);
-  const mapped: ClientLedger[] = (entries || []).map((e: any) => ({
+      const { entries } = await listClientLedger(clientId);
+      const mapped: ClientLedger[] = (entries || []).map((e: any) => ({
         _id: String(e._id),
         date: e.date ? new Date(e.date) : null,
         accountNumber: e.accountNumber || '',
@@ -158,17 +182,17 @@ export const useClientLedgerState = (clientId: string) => {
       }));
       const cached = getLedgerCache(clientId);
       if (mapped.length === 0 && cached && cached.length > 0) {
-        setImportedEntries(cached);
+        setImportedEntries(ledgerEntriesToClientLedgers(cached));
         setLedgerCache(clientId, cached);
         return 0;
       } else {
         setImportedEntries(mapped);
-        setLedgerCache(clientId, mapped);
+        setLedgerCache(clientId, clientLedgersToLedgerEntries(mapped));
         return mapped.length;
       }
     } catch (e) {
-  console.warn('Reload échoué:', e);
-  return -1;
+      console.warn('Reload échoué:', e);
+      return -1;
     }
   }, [clientId]);
 
@@ -176,7 +200,7 @@ export const useClientLedgerState = (clientId: string) => {
     try {
       await clearClientLedger(clientId);
       setImportedEntries([]);
-  clearLedgerCache(clientId);
+      clearLedgerCache(clientId);
       showNotification({ type: 'success', title: 'Grand livre vidé', message: 'Toutes les écritures ont été supprimées.', duration: 3000 });
     } catch (e) {
       showNotification({ type: 'error', title: 'Erreur', message: 'Impossible de vider le grand livre.', duration: 4000 });
@@ -209,212 +233,58 @@ export const useClientLedgerState = (clientId: string) => {
         throw new Error("Identifiant client invalide");
       }
 
-  const newEntriesRaw: ClientLedger[] = (() => {
-        // Statefull parsing pour gérer les lignes d'en-tête client/compte
-        let currentClientName = '';
-        let currentAccountNumber = '';
-        const out: ClientLedger[] = [];
-        const nowBase = Date.now();
-        importedData.filter(r => r?.isValid).forEach((row, idx) => {
-          // Normalisation locale des clés d'en-tête pour recherche robuste
-          const normalize = (s: string) =>
-            String(s || '')
-              .toLowerCase()
-              .normalize('NFD')
-              .replace(/\p{Diacritic}/gu, '') // retire accents
-              .replace(/^\uFEFF/, '') // retire BOM éventuel
-              .replace(/[\u00a0\t]+/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim();
-
-          const headerMap: Record<string, string> = {};
-          const keysOriginal = Object.keys(row.data || {});
-          const keysNorm = keysOriginal.map(k => normalize(k));
-          keysOriginal.forEach((key) => {
-            headerMap[normalize(key)] = key; // map normalisé -> clé originale
-          });
-
-          const findColumnValue = (possibleNames: string[]) => {
-            // 1) Recherche exacte par clé normalisée
-            for (const name of possibleNames) {
-              const norm = normalize(name);
-              const originalKey = headerMap[norm];
-              if (originalKey !== undefined && row.data[originalKey] !== null && row.data[originalKey] !== undefined) {
-                const value = String(row.data[originalKey]).trim();
-                if (value !== '') return value;
-              }
-            }
-            // 2) Recherche floue: en-tête qui contient le nom possible (et inversement)
-            for (const name of possibleNames) {
-              const target = normalize(name);
-              let matchIndex = keysNorm.findIndex(h => h.includes(target) || target.includes(h));
-              if (matchIndex >= 0) {
-                const originalKey = keysOriginal[matchIndex];
-                const v = row.data[originalKey];
-                if (v !== null && v !== undefined) {
-                  const value = String(v).trim();
-                  if (value !== '') return value;
-                }
-              }
-            }
-            return '';
-          };
-
-          // Extraction des valeurs dans la ligne
-          const dateStr = findColumnValue(['Date', 'date']);
-          const rawAccountNumber = CSVSanitizer.sanitizeString(
-            findColumnValue([
-              'N° Compte', 'N°compte', 'N°Compte', 'Numéro compte', 'Numéro de compte', 'Numero compte', 'Numero de compte',
-              'Compte', 'Compte client', 'Compte tiers', 'Compte auxiliaire', 'Code client', 'Code',
-              'accountNumber',
-            ])
-          );
-          const rawClientName = CSVSanitizer.sanitizeString(
-            findColumnValue(['Nom Client', 'Client', 'clientName', 'Nom client', 'nom client'])
-          );
-          let description = CSVSanitizer.sanitizeString(
-            findColumnValue([
-              'Libellé', 'Libelle', 'Intitulé', 'Intitule',
-              'Libellé mouvement', 'Libelle mouvement', 'Libellé écriture', 'Libelle écriture', 'Libellé operation', 'Libelle operation',
-              'Description', 'description', 'libelle'
-            ])
-          );
-          const debitStr = findColumnValue(['Débit', 'Debit', 'debit', 'débits', 'montant débit', 'montant debit']);
-          const creditStr = findColumnValue(['Crédit', 'Credit', 'credit', 'crédits', 'montant crédit', 'montant credit']);
-          const soldeStr = findColumnValue(['Solde', 'Balance', 'balance', 'solde']);
-          const reference = CSVSanitizer.sanitizeString(
-            findColumnValue(['Référence', 'Reference', 'Ref', 'reference', 'référence'])
-          );
-
-          // Déterminer si la ligne est une ligne d'en-tête (définit le contexte mais n'est pas une écriture)
-          const isHeaderLine = !dateStr && !description && (!!rawClientName || !!rawAccountNumber);
-          if (isHeaderLine) {
-            // Mettre à jour le contexte courant
-            const normalizeCompare = (s: string) => s.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-            const isNumericOnly = (s: string) => {
-              const alnum = s.replace(/[^A-Za-z0-9]/g, '');
-              return alnum.length > 0 && /^[0-9]+$/.test(alnum);
-            };
-            const looksLikeCode = (s: string) => /^[A-Z]{1,5}\d{4,}$/.test(normalizeCompare(s));
-            // ClientName nettoyé
-            const cleanedClientName = (!rawClientName || isNumericOnly(rawClientName) || (!!rawAccountNumber && normalizeCompare(rawClientName) === normalizeCompare(rawAccountNumber)) || looksLikeCode(rawClientName))
-              ? ''
-              : rawClientName;
-            if (cleanedClientName) currentClientName = cleanedClientName;
-            if (rawAccountNumber) currentAccountNumber = rawAccountNumber;
-            return; // ne pas pousser d'écriture
-          }
-
-          // Pas une en-tête: générer potentiellement une écriture
-          const date = CSVSanitizer.sanitizeDate(dateStr);
-          // Si cette ligne ne porte pas client/compte, reprendre du contexte
-          const accountNumber = rawAccountNumber || currentAccountNumber || '';
-          // Nettoyage nom client par heuristique
-          const normalizeCompare = (s: string) => s.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-          const isNumericOnly = (s: string) => {
-            const alnum = s.replace(/[^A-Za-z0-9]/g, '');
-            return alnum.length > 0 && /^[0-9]+$/.test(alnum);
-          };
-          const looksLikeCode = (s: string) => /^[A-Z]{1,5}\d{4,}$/.test(normalizeCompare(s));
-          let clientName = rawClientName || currentClientName || '';
-          if (!clientName || isNumericOnly(clientName) || (!!accountNumber && normalizeCompare(clientName) === normalizeCompare(accountNumber)) || looksLikeCode(clientName)) {
-            clientName = currentClientName || '';
-          }
-
-          let debit = CSVSanitizer.sanitizeNumeric(debitStr);
-          let credit = CSVSanitizer.sanitizeNumeric(creditStr);
-          const solde = CSVSanitizer.sanitizeNumeric(soldeStr);
-          // Si seuls les soldes sont fournis, dériver débit/crédit du signe du solde
-          if ((debit === 0 && credit === 0) && solde !== 0) {
-            if (solde < 0) {
-              credit = Math.abs(solde);
-            } else {
-              debit = solde;
-            }
-          }
-          const balance = (debit !== 0 || credit !== 0) ? (debit - credit) : (solde || 0);
-
-          // Fallback: si pas de libellé trouvé, tenter d'inférer depuis la première colonne textuelle non-numérique
-          if (!description) {
-            const skipTargets = [
-              // ensembles de colonnes à ignorer
-              'date', 'nom client', 'client', 'client name', 'clientname', 'client_name',
-              'n° compte', 'numero compte', 'numéro compte', 'numéro de compte', 'account number', 'accountnumber', 'account_number', 'compte', 'compte client', 'compte tiers', 'compte auxiliaire', 'code client', 'code',
-              'debit', 'débit', 'montant debit', 'montant débit',
-              'credit', 'crédit', 'montant credit', 'montant crédit',
-              'solde', 'balance',
-              'référence', 'reference', 'ref',
-              'n° facture', 'facture', 'invoice number', 'invoice_number', 'invoiceNumber'
-            ].map(s => s.toLowerCase());
-            for (let i = 0; i < keysOriginal.length; i++) {
-              const key = keysOriginal[i];
-              const normKey = normalize(key);
-              if (skipTargets.some(t => normKey.includes(t) || t.includes(normKey))) continue;
-              const val = row.data[key];
-              if (val !== null && val !== undefined) {
-                const text = String(val).trim();
-                if (text) {
-                  // Écarter les valeurs purement numériques / montants
-                  const numericLike = /^[-+]?\d{1,3}([\s,.]\d{3})*(\,\d+|\.\d+)?$/.test(text.replace(/\u00A0/g, ' '));
-                  if (!numericLike) {
-                    description = CSVSanitizer.sanitizeString(text);
-                    break;
-                  }
-                }
-              }
-            }
-          }
-
-          // Si la ligne est totalement vide (pas de date, pas de libellé, pas de montants, pas de référence) on ignore
-          const hasContent = !!date || !!description || !!reference || debit !== 0 || credit !== 0 || solde !== 0;
-          if (!hasContent) return;
-
-          out.push({
-            _id: `imported-${nowBase}-${idx}`,
-            date,
-            accountNumber,
-            accountName: clientName,
-            description,
-            debit,
-            credit,
-            balance,
-            reference,
+      // Fonction simplifiée pour créer les nouvelles entrées
+      const newEntries: ClientLedger[] = importedData
+        .filter(r => r?.isValid)
+        .map((row, idx) => {
+          const data = row.data || {};
+          return {
+            _id: `imported-${Date.now()}-${idx}`,
+            date: data.date ? new Date(String(data.date)) : null,
+            accountNumber: String(data.accountNumber || ''),
+            accountName: String(data.accountName || ''),
+            description: String(data.description || ''),
+            debit: Number(data.debit) || 0,
+            credit: Number(data.credit) || 0,
+            balance: (Number(data.debit) || 0) - (Number(data.credit) || 0),
+            reference: String(data.reference || ''),
             clientId,
-            type: 'client',
-            clientName,
-            invoiceNumber: findColumnValue(['N° Facture', 'Facture', 'invoiceNumber']),
+            type: 'client' as const,
+            clientName: String(data.clientName || ''),
+            invoiceNumber: String(data.invoiceNumber || ''),
             createdAt: new Date(),
             isImported: true,
-          });
+          };
         });
-        return out;
-      })();
 
-  // Enrichissement IA des écritures importées
-  let newEntries = newEntriesRaw;
+      // Enrichissement IA des écritures importées
+      let enrichedEntries = newEntries;
       try {
-        newEntries = await enrichImportedClientLedger(newEntriesRaw);
+        enrichedEntries = await enrichImportedClientLedger(newEntries);
       } catch (e) {
         // Si l'IA n'est pas disponible, on continue sans enrichissement
         console.warn('Enrichissement IA indisponible, import sans annotations IA.');
       }
 
-  // Déduplication: combiner les entrées existantes importées avec les nouvelles
-  const existingSigs = new Set(importedEntries.map(getClientLedgerSignature));
-  const { unique } = dedupBySignature(newEntries, getClientLedgerSignature, existingSigs);
-  const addedCount = unique.length;
-  const duplicateCount = newEntries.length - addedCount;
+      // Déduplication: combiner les entrées existantes importées avec les nouvelles
+      const existingSigs = new Set(importedEntries.map(getClientLedgerSignature));
+      const { unique } = dedupBySignature(enrichedEntries, getClientLedgerSignature, existingSigs);
+      const addedCount = unique.length;
+      const duplicateCount = enrichedEntries.length - addedCount;
+      
       // Mettre à disposition immédiatement en mémoire + cache (avant persistence)
       if (addedCount > 0) {
         const merged = [...importedEntries, ...unique];
         setImportedEntries(merged);
-        setLedgerCache(clientId, merged);
+        setLedgerCache(clientId, clientLedgersToLedgerEntries(merged));
       }
+      
       // Persist to DB puis rafraîchir depuis la DB (source de vérité)
       try {
         // Ignorer l'enregistrement des lignes sans N° Compte (pas de valeur par défaut)
         const toSave = unique.filter(e => (e.accountNumber || '').trim().length > 0);
         const skippedNoAccount = unique.length - toSave.length;
+        
         if (skippedNoAccount > 0) {
           showNotification?.({
             type: 'warning',
@@ -423,6 +293,7 @@ export const useClientLedgerState = (clientId: string) => {
             duration: 5000,
           });
         }
+        
         // Si aucune écriture valide à enregistrer, éviter l'appel API (sinon 400)
         if (toSave.length === 0) {
           showNotification?.({
@@ -433,15 +304,20 @@ export const useClientLedgerState = (clientId: string) => {
           });
           return; // on sort proprement, les données restent visibles en mémoire
         }
-        const res = await saveClientLedger(toSave.map(e => ({ ...e })));
+        
+        const ledgerEntries = clientLedgersToLedgerEntries(toSave);
+        const res = await saveClientLedger(ledgerEntries);
+        
         // Recharger depuis la base pour s'aligner sur l'état persistant
         const count = await reloadFromDb();
+        
         showNotification?.({
           type: 'success',
           title: 'Sauvegarde en base',
-          message: `${res.inserted} inséré(s), ${res.skipped} ignoré(s)`,
+          message: `${toSave.length} entrée(s) sauvegardée(s)`,
           duration: 4000,
         });
+        
         if (count === 0) {
           // Si la base ne renvoie rien, indiquer qu'aucune écriture persistée n'est disponible
           showNotification?.({
@@ -471,6 +347,7 @@ export const useClientLedgerState = (clientId: string) => {
           duration: 5000,
         });
       }
+      
       if (duplicateCount > 0) {
         showNotification({
           type: "warning",
@@ -488,7 +365,7 @@ export const useClientLedgerState = (clientId: string) => {
         duration: 5000,
       });
     }
-  }, [clientId, showNotification]);
+  }, [clientId, showNotification, importedEntries, reloadFromDb]);
 
   // Marquer une écriture comme justifiée (après upload justificatif)
   const markEntryAsJustified = useCallback((entryId: string) => {
@@ -512,17 +389,20 @@ export const useClientLedgerState = (clientId: string) => {
     setSelectedEntries,
     llmSuggestions,
     setLlmSuggestions,
+    sortBy,
+    setSortBy,
     
     // Computed values
     entries: allEntries,
     filteredEntries,
+    visibleEntries,
     summary,
     entriesByClient,
     
     // Actions
     handleImport,
-  markEntryAsJustified,
-  reloadFromDb,
-  clearForClient,
+    markEntryAsJustified,
+    reloadFromDb,
+    clearForClient,
   };
 };

@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 import type { ClientLedger } from '@/types/accounting';
-import { getLedgerCache, setLedgerCache, clearLedgerCache } from '@/lib/ledgerCache';
+// Simple in-memory cache for API routes
+const ledgerCache = new Map<string, any[]>();
+
+const getLedgerCache = (clientId: string): any[] | undefined => {
+  return ledgerCache.get(clientId);
+};
+
+const setLedgerCache = (clientId: string, entries: any[]): void => {
+  ledgerCache.set(clientId, entries);
+};
+
+const clearLedgerCache = (clientId: string): void => {
+  ledgerCache.delete(clientId);
+};
 import { getClientLedgerSignature, dedupBySignature } from '@/utils/ledgerDedup';
 import { supabaseServer } from '@/lib/supabase';
 

@@ -1,199 +1,166 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
+import UploadJustificatifModal from '@/components/ledgers/shared/UploadJustificatifModal';
+import GedViewer from '@/components/clients/GedViewer';
+import { AuthWrapper } from '@/components/ui/AuthWrapper';
+import { Download, RefreshCw, Upload } from 'lucide-react';
+
+type ClientItem = { id: string; name: string };
 
 const DocumentsManagement = () => {
   const { user, loading } = useAuth();
+  const [clients, setClients] = useState<ClientItem[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [entryId, setEntryId] = useState<string>('general');
+  const [isLoading, setIsLoading] = useState(false);
+  const [items, setItems] = useState<Array<{ name: string; url?: string; path: string; size: number | null; createdAt: string | null }>>([]);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [includeGeneral, setIncludeGeneral] = useState(true);
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
-  }
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/clients');
+        if (!res.ok) throw new Error('Échec chargement clients');
+        const data = await res.json();
+        const list = (data.clients || []).map((c: any) => ({ id: c.id || c._id, name: c.name || c.email || 'Client' })).filter((c: any) => !!c.id);
+        if (!cancelled) {
+          setClients(list);
+          // Sélectionner le premier par défaut
+          if (list.length > 0) setSelectedClientId(list[0].id);
+        }
+      } catch (e) {
+        // noop
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.role]);
 
-  if (!user || user.role !== 'admin') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
-  }
+  const selectedClientName = useMemo(() => clients.find(c => c.id === selectedClientId)?.name || '', [clients, selectedClientId]);
 
-  return (
-    <DashboardLayout userRole="admin" userId={user._id}>
+  const refresh = async () => {
+    if (!selectedClientId || !entryId) return;
+    try {
+      setIsLoading(true);
+      const fetchOne = async (eid: string) => {
+        const res = await fetch('/api/documents/list', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: selectedClientId, entryId: eid })
+        });
+        if (!res.ok) return [] as any[];
+        const data = await res.json();
+        return data.files || [];
+      };
+      const lists = await Promise.all([
+        fetchOne(entryId),
+        includeGeneral && entryId !== 'general' ? fetchOne('general') : Promise.resolve([])
+      ]);
+      const merged = [...lists[0], ...lists[1]];
+      setItems(merged);
+    } catch (e) {
+      // noop
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { if (selectedClientId) refresh(); }, [selectedClientId, entryId]);
+
+return (
+    <AuthWrapper 
+      loadingMessage="Chargement de la GED..."
+      allowedRoles={['admin']}
+      unauthorizedMessage="Vous devez être administrateur pour accéder à la GED."
+    >
+      <DashboardLayout userRole="admin" userId={user?.id || ''}>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">GED - Gestion Électronique de Documents</h1>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-            Télécharger un document
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="font-semibold text-gray-900">Total documents</h3>
-            <p className="text-2xl font-bold text-blue-600">0</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">GED - Documents clients</h1>
+            <p className="text-gray-600">Parcourez et téléchargez les pièces jointes envoyées par les clients</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="font-semibold text-gray-900">En attente</h3>
-            <p className="text-2xl font-bold text-orange-600">0</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="font-semibold text-gray-900">Validés</h3>
-            <p className="text-2xl font-bold text-green-600">0</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="font-semibold text-gray-900">Archivés</h3>
-            <p className="text-2xl font-bold text-gray-600">0</p>
-          </div>
-        </div>
-        
-        {/* Filtres et recherche */}
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-            <div className="relative flex-1 max-w-md">
-              <input
-                type="text"
-                placeholder="Rechercher un document..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-            </div>
-            <div className="flex space-x-2">
-              <select className="border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                <option>Tous les types</option>
-                <option>Factures</option>
-                <option>Contrats</option>
-                <option>Déclarations</option>
-                <option>Bilans</option>
-              </select>
-              <select className="border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                <option>Tous les statuts</option>
-                <option>En attente</option>
-                <option>Validé</option>
-                <option>Archivé</option>
-              </select>
-            </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setUploadOpen(true)} disabled={!selectedClientId}
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg">
+              <Upload className="w-4 h-4" /> Ajouter une pièce jointe
+            </button>
+            <button onClick={refresh} className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-lg">
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> Rafraîchir
+            </button>
           </div>
         </div>
 
-        {/* Liste des documents */}
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div className="flex-1 flex flex-col gap-2">
+              <label className="text-sm text-gray-600">Client</label>
+              <select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                {clients.length === 0 && <option>Aucun client</option>}
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-full md:w-64 flex flex-col gap-2">
+              <label className="text-sm text-gray-600">Espace (entryId)</label>
+              <input value={entryId} onChange={(e) => setEntryId(e.target.value)}
+                placeholder="general" className="border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              <p className="text-xs text-gray-500">Astuce: utilisez "general" pour les documents génériques. Pour une écriture spécifique, indiquez son identifiant.</p>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
+              <input type="checkbox" checked={includeGeneral} onChange={(e) => setIncludeGeneral(e.target.checked)} />
+              Inclure aussi l'espace "general"
+            </label>
+          </div>
+        </div>
+
         <div className="bg-white shadow rounded-lg">
           <div className="p-6">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Document
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Statut
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  <tr className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">Facture_ABC_012024.pdf</div>
-                          <div className="text-sm text-gray-500">2.4 MB</div>
-                        </div>
+            {items.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">Aucun document trouvé pour ce client{entryId ? ` (${entryId})` : ''}.</div>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {items.map((f) => (
+                  <li key={f.path} className="py-3 flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-gray-900">{f.name}</div>
+                      <div className="text-xs text-gray-500">
+                        Client: {selectedClientName || selectedClientId} • {f.path?.includes('/general/') ? 'Espace: general' : `Espace: ${entryId}`}
+                        {f.size ? ` • ${(f.size/1024).toFixed(1)} Ko` : ''}
+                        {f.createdAt ? ` • ${new Date(f.createdAt).toLocaleString('fr-FR')}` : ''}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">Entreprise ABC</div>
-                      <div className="text-sm text-gray-500">Pierre Durand</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                        Facture
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
-                        En attente
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      15/01/2024
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button className="text-blue-600 hover:text-blue-900">Voir</button>
-                        <button className="text-green-600 hover:text-green-900">Valider</button>
-                        <button className="text-red-600 hover:text-red-900">Supprimer</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-lg bg-green-100 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">Bilan_Martin_2023.pdf</div>
-                          <div className="text-sm text-gray-500">1.8 MB</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">SARL Martin</div>
-                      <div className="text-sm text-gray-500">Marie Martin</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                        Bilan
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        Validé
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      12/01/2024
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button className="text-blue-600 hover:text-blue-900">Voir</button>
-                        <button className="text-gray-600 hover:text-gray-900">Archiver</button>
-                        <button className="text-red-600 hover:text-red-900">Supprimer</button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    </div>
+                    {f.url && (
+                      <a href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800">
+                        <Download className="w-4 h-4" /> Télécharger
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>
-    </DashboardLayout>
+
+      {uploadOpen && selectedClientId && (
+        <UploadJustificatifModal
+          isOpen={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+          clientId={selectedClientId}
+          entryId={entryId || 'general'}
+          onUploaded={() => refresh()}
+        />
+)}
+      </DashboardLayout>
+    </AuthWrapper>
   );
 };
 

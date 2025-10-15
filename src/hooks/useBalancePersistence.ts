@@ -1,10 +1,83 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { BalanceItem } from '@/types/accounting';
-import { 
-  getLastUsedPeriod, 
-  setLastUsedPeriod 
-} from '@/lib/balanceRealCache';
-import { listBalance, saveBalance, clearBalance, type BalanceInput } from '@/services/balanceApi';
+import { balanceCache } from '@/lib/cache/unified/BalanceCache';
+
+// API functions for balance operations
+async function listBalance(clientId: string, period?: string) {
+  try {
+    const params = new URLSearchParams({ clientId });
+    if (period) params.append('period', period);
+
+    const response = await fetch(`/api/balance?${params}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) throw new Error('Failed to fetch balance data');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching balance data:', error);
+    return { items: [] };
+  }
+}
+
+async function saveBalance(items: any[]) {
+  try {
+    const response = await fetch('/api/balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+
+    if (!response.ok) throw new Error('Failed to save balance data');
+    return await response.json();
+  } catch (error) {
+    console.error('Error saving balance data:', error);
+    throw error;
+  }
+}
+
+async function clearBalance(clientId: string, period?: string) {
+  try {
+    const params = new URLSearchParams({ clientId });
+    if (period) params.append('period', period);
+
+    const response = await fetch(`/api/balance?${params}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) throw new Error('Failed to clear balance data');
+    return await response.json();
+  } catch (error) {
+    console.error('Error clearing balance data:', error);
+    throw error;
+  }
+}
+
+// Local storage helpers for period tracking
+function getLastUsedPeriod(clientId: string): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return localStorage.getItem(`balance-last-period-${clientId}`) || undefined;
+}
+
+function setLastUsedPeriod(clientId: string, period: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(`balance-last-period-${clientId}`, period);
+}
+
+type BalanceInput = {
+  accountNumber: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  clientId: string;
+  period?: string;
+  importIndex?: number;
+  originalDebit?: string | number | null;
+  originalCredit?: string | number | null;
+  createdAt?: Date | string;
+};
 
 interface UseBalancePersistenceOptions {
   clientId: string;

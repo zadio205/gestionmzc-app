@@ -16,9 +16,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
+    <html lang="fr" data-scroll-behavior="smooth">
       <head>
         <script src="/extension-guard.js" defer></script>
+        <script src="/clear-invalid-session.js" defer></script>
       </head>
       <body className={inter.className}>
         <NotificationProvider>

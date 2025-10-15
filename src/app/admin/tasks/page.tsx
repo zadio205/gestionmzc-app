@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { Plus, Calendar, User, Clock, CheckCircle, AlertCircle, Filter } from 'lucide-react';
 
 const AdminTasks = () => {
@@ -58,13 +59,15 @@ const AdminTasks = () => {
     },
   ];
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  if (!user && !loading) {
+    return <UnauthorizedRedirect />;
   }
 
-  if (!user || user.role !== 'admin') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
+  if (user && user.role !== 'admin') {
+    return <UnauthorizedRedirect />;
   }
+
+  if (!user) return null;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -107,7 +110,7 @@ const AdminTasks = () => {
   };
 
   return (
-    <DashboardLayout userRole="admin" userId={user._id}>
+    <DashboardLayout userRole="admin" userId={user.id}>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">Tâches administratives</h1>

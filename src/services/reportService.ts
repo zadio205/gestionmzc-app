@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/utils/logger';
+
 export interface ReportData {
   id: string;
   type: string;
@@ -64,9 +66,11 @@ class ReportService {
       
       return report;
     } catch (error) {
-      console.error('Erreur génération rapport:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Erreur génération rapport', { error: err, type: params.type, userRole: params.userRole });
       throw new Error('Impossible de générer le rapport');
     }
+
   }
 
   // Génération d'insights IA pour le rapport
@@ -355,9 +359,11 @@ class ReportService {
         }
       ];
     } catch (error) {
-      console.error('Erreur récupération historique:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Erreur récupération historique', { error: err, userId });
       return [];
     }
+
   }
 }
 

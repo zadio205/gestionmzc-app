@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { Send, MessageCircle, Search, Phone, Video } from 'lucide-react';
 
 const ClientChat = () => {
@@ -53,7 +54,7 @@ const ClientChat = () => {
     },
     { 
       id: '2', 
-      senderId: user?._id, 
+      senderId: user?.id, 
       senderName: user?.name, 
       content: 'Bonjour Pierre, bien sûr ! Je vais vous préparer un récapitulatif de vos déclarations.', 
       timestamp: '14:27', 
@@ -69,13 +70,15 @@ const ClientChat = () => {
     },
   ];
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  if (!user && !loading) {
+    return <UnauthorizedRedirect />;
   }
 
-  if (!user || !['admin', 'collaborateur'].includes(user.role)) {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
+  if (user && !['admin', 'collaborateur', 'superadmin'].includes(user.role)) {
+    return <UnauthorizedRedirect />;
   }
+
+  if (!user) return null;
 
   const handleSendMessage = () => {
     if (message.trim() && selectedClient) {
@@ -91,7 +94,7 @@ const ClientChat = () => {
   );
 
   return (
-    <DashboardLayout userRole={user.role as any} userId={user._id}>
+    <DashboardLayout userRole={user.role as 'admin' | 'collaborateur' | 'client'} userId={user.id}>
       <div className="h-full flex bg-white rounded-lg shadow">
         {/* Liste des clients */}
         <div className="w-1/3 border-r border-gray-200 flex flex-col">

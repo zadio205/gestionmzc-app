@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import ReportGenerator from '@/components/reports/ReportGenerator';
 import ReportHistory from '@/components/reports/ReportHistory';
 import { useAuth } from '@/hooks/useAuth';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { 
   FileText, 
   Plus, 
@@ -18,13 +19,15 @@ const AdminReportsPage = () => {
   const { user, loading } = useAuth();
   const [showGenerator, setShowGenerator] = useState(false);
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  if (!user && !loading) {
+    return <UnauthorizedRedirect />;
   }
 
-  if (!user || user.role !== 'admin') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
+  if (user && user.role !== 'admin') {
+    return <UnauthorizedRedirect />;
   }
+
+  if (!user) return null;
 
   const reportStats = [
     {
@@ -62,7 +65,7 @@ const AdminReportsPage = () => {
   ];
 
   return (
-    <DashboardLayout userRole="admin" userId={user._id}>
+    <DashboardLayout userRole="admin" userId={user.id}>
       <div className="space-y-6">
         {/* En-tête */}
         <div className="flex items-center justify-between">
@@ -159,7 +162,7 @@ const AdminReportsPage = () => {
         </div>
 
         {/* Historique des rapports */}
-        <ReportHistory userRole="admin" userId={user._id} />
+        <ReportHistory userRole="admin" userId={user.id} />
 
         {/* Modal de génération */}
         <ReportGenerator

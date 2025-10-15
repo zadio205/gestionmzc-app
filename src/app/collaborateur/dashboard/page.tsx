@@ -12,13 +12,13 @@ import MetricsChart from '@/components/dashboard/MetricsChart';
 import NotificationsPanel from '@/components/dashboard/NotificationsPanel';
 import CalendarWidget from '@/components/dashboard/CalendarWidget';
 import ToolsShortcuts from '@/components/dashboard/ToolsShortcuts';
-import AIInsightsWidget from '@/components/dashboard/AIInsightsWidget';
 import SmartNotifications from '@/components/dashboard/SmartNotifications';
 import PredictiveAnalytics from '@/components/dashboard/PredictiveAnalytics';
 import SmartQuickActions from '@/components/dashboard/SmartQuickActions';
 import ReportGenerator from '@/components/reports/ReportGenerator';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { 
   Building2, 
   FileText, 
@@ -44,7 +44,7 @@ const CollaborateurDashboard = () => {
     loading: dataLoading,
     error,
     actions 
-  } = useDashboardData('collaborateur', user?._id);
+  } = useDashboardData('collaborateur', user?.id);
   
   const [showReportGenerator, setShowReportGenerator] = useState(false);
 
@@ -287,16 +287,18 @@ const CollaborateurDashboard = () => {
     }
   ];
 
-  if (authLoading || dataLoading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+  if (!user && !authLoading) {
+    return <UnauthorizedRedirect />;
   }
 
-  if (!user || user.role !== 'collaborateur') {
-    return <div className="flex items-center justify-center h-screen">Accès non autorisé</div>;
+  if (user && user.role !== 'collaborateur') {
+    return <UnauthorizedRedirect />;
   }
+
+  if (!user) return null;
 
   return (
-    <DashboardLayout userRole="collaborateur" userId={user._id}>
+    <DashboardLayout userRole="collaborateur" userId={user.id}>
       <div className="space-y-6">
         {/* En-tête */}
         <div className="flex items-center justify-between">
@@ -397,9 +399,8 @@ const CollaborateurDashboard = () => {
           {/* Colonne droite */}
           <div className="space-y-6">
             <CalendarWidget events={mockCalendarEvents} />
-            <AIInsightsWidget userRole="collaborateur" data={{ stats, clients, tasks }} />
             <SmartNotifications 
-              userContext={{ role: 'collaborateur', userId: user?._id }}
+              userContext={{ role: 'collaborateur', userId: user?.id }}
               onMarkAsRead={actions.markNotificationAsRead}
               onDismiss={actions.dismissNotification}
             />
