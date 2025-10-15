@@ -8,7 +8,7 @@ if (!PUBLIC_URL || !PUBLIC_ANON_KEY) {
   // Aide au diagnostique côté client pendant le dev
   if (typeof window !== 'undefined') {
     // Log clair en dev; ne pas inclure de secrets
-    // eslint-disable-next-line no-console
+     
     console.error(
       '[Config] Variables manquantes: NEXT_PUBLIC_SUPABASE_URL et/ou NEXT_PUBLIC_SUPABASE_ANON_KEY.\n' +
       'Créez .env.local à la racine et redémarrez le serveur de dev.'

@@ -2,18 +2,18 @@
 
 import React, { useState } from 'react';
 import { 
-  FileText, 
-  Download, 
+  BarChart3, 
+  Brain, 
   Calendar, 
-  Users, 
-  TrendingUp,
-  BarChart3,
-  PieChart,
-  X,
-  CheckCircle,
+  CheckCircle, 
   Clock,
-  Brain,
-  Sparkles
+  Download,
+  FileText,
+  PieChart,
+  Sparkles,
+  TrendingUp,
+  Users,
+  X
 } from 'lucide-react';
 
 interface ReportType {

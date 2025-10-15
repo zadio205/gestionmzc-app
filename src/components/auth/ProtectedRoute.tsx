@@ -8,7 +8,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
-import type { UserRole, Permission } from '@/types/auth';
+import type { Permission, UserRole } from '@/types/auth';
 import AuthLoadingScreen from '@/components/ui/AuthLoadingScreen';
 
 interface ProtectedRouteProps {
@@ -74,7 +74,7 @@ export function ProtectedRoute({
         return;
       }
     }
-  }, [user, loading, allowedRoles, requiredPermissions, requireAll, redirectTo, router]);
+  }, [user, loading, allowedRoles, requiredPermissions, requireAll, redirectTo, router, hasAllPermissions, hasAnyPermission, hasAnyRole]);
 
   // Loading state
   if (loading) {

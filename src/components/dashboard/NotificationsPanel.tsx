@@ -2,13 +2,13 @@
 
 import React from 'react';
 import { 
-  Bell, 
   AlertTriangle, 
-  Info, 
+  Bell, 
   CheckCircle, 
-  X,
-  Clock,
-  ExternalLink
+  Clock, 
+  ExternalLink,
+  Info,
+  X
 } from 'lucide-react';
 
 interface Notification {

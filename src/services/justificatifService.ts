@@ -1,4 +1,4 @@
-import { Justificatif, JustificatifUploadParams, JustificatifFilters } from '@/types/justificatif';
+import { Justificatif, JustificatifFilters, JustificatifUploadParams } from '@/types/justificatif';
 import { logger } from '@/utils/logger';
 
 /**

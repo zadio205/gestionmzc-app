@@ -69,7 +69,7 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
       {/* Suggestions LLM */}
       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex items-center justify-between mb-2">
-          <h4 className="font-medium text-blue-800">Suggestions d'amélioration (IA)</h4>
+          <h4 className="font-medium text-blue-800">Suggestions d&apos;amélioration (IA)</h4>
           {onGenerateSuggestions && (
             <button
               onClick={onGenerateSuggestions}
@@ -89,7 +89,7 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-blue-600">Cliquez sur "Générer suggestions" pour obtenir des recommandations IA</p>
+          <p className="text-sm text-blue-600">Cliquez sur &quot;Générer suggestions&quot; pour obtenir des recommandations IA</p>
         )}
       </div>
 

@@ -2,18 +2,18 @@
 
 import React, { useState } from 'react';
 import { 
-  LayoutGrid, 
-  List, 
+  Columns, 
   Eye, 
   EyeOff, 
-  Settings, 
-  Columns, 
-  Filter,
-  SortAsc,
-  SortDesc,
-  MoreHorizontal,
+  Filter, 
+  LayoutGrid, 
+  List, 
   Maximize2,
-  Minimize2
+  Minimize2,
+  MoreHorizontal,
+  Settings,
+  SortAsc,
+  SortDesc
 } from 'lucide-react';
 
 interface ViewCustomizationProps {

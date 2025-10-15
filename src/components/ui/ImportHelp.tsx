@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { HelpCircle, Download, X, FileText } from 'lucide-react';
+import { Download, FileText, HelpCircle, X } from 'lucide-react';
 
 interface ImportHelpProps {
   type: 'balance' | 'clients' | 'suppliers' | 'miscellaneous';

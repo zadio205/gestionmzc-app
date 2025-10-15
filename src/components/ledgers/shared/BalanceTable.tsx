@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { BalanceItem } from "@/types/accounting";
-import { Search, Filter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Filter, Search } from "lucide-react";
 
 interface BalanceTableProps {
   items: BalanceItem[];
@@ -25,7 +25,7 @@ const BalanceTable: React.FC<BalanceTableProps> = ({
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
   const filteredAndSortedItems = useMemo(() => {
-    let filtered = items.filter(item =>
+    const filtered = items.filter(item =>
       item.accountNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.accountName.toLowerCase().includes(searchTerm.toLowerCase())
     );

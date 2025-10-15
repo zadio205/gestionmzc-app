@@ -1,23 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { logger } from '@/utils/logger';
 import { dashboardService } from '@/services/dashboardService';
 import type {
-  DashboardStats,
   Activity,
-  Task,
   ClientOverview,
+  DashboardStats,
   Message,
-  Notification
+  Notification,
+  Task
 } from '@/services/dashboardService';
 import {
-  DEFAULT_DASHBOARD_STATS,
   DEFAULT_ACTIVITIES,
   DEFAULT_CLIENTS,
-  DEFAULT_TASKS,
+  DEFAULT_DASHBOARD_STATS,
   DEFAULT_MESSAGES,
-  DEFAULT_NOTIFICATIONS
+  DEFAULT_NOTIFICATIONS,
+  DEFAULT_TASKS
 } from '@/constants/dashboardDefaults';
 
 // Les types sont maintenant importés depuis dashboardService.ts

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { MessageCircle, User, Clock, Send, Edit3, Trash2, Plus } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Clock, Edit3, MessageCircle, Plus, Send, Trash2, User } from 'lucide-react';
 
 interface Comment {
   id: string;

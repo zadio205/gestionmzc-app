@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, lazy, Suspense, useMemo } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import PageLayout from '@/components/layout/PageLayout';
-import { Card, CardHeader, CardContent } from '@/components/ui/Card';
+import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import StatsCard from '@/components/dashboard/StatsCard';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
 import { DashboardErrorBoundary } from '@/components/ui/DashboardErrorBoundary';
@@ -42,14 +42,14 @@ const ReportGenerator = lazy(() => {
   return promise;
 });
 import { 
-  Users, 
+  AlertTriangle, 
   Building2, 
-  FileText, 
+  Database, 
+  FileText,
   MessageCircle,
-  TrendingUp,
-  AlertTriangle,
   Shield,
-  Database
+  TrendingUp,
+  Users
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -59,7 +59,6 @@ const AdminDashboard = () => {
     activities, 
     tasks, 
     clients, 
-    loading: dataLoading,
     actions 
   } = useDashboardData('admin', user?.id);
   
@@ -220,7 +219,7 @@ const AdminDashboard = () => {
                 <SmartQuickActions 
                   userRole="admin" 
                   userData={{ stats, clients, tasks }}
-                  onActionClick={(actionId) => console.log('Action clicked:', actionId)}
+                  onActionClick={() => {}}
                 />
               </Suspense>
             )}

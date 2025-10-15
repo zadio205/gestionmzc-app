@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Calendar, DollarSign, FileText, User } from 'lucide-react';
+import { Calendar, DollarSign, FileText, User, X } from 'lucide-react';
 
 interface Entry {
   _id: string;

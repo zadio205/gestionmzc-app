@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
+import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 
 interface ChartData {
   label: string;

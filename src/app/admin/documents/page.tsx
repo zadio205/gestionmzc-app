@@ -3,16 +3,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
-import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import UploadJustificatifModal from '@/components/ledgers/shared/UploadJustificatifModal';
-import GedViewer from '@/components/clients/GedViewer';
 import { AuthWrapper } from '@/components/ui/AuthWrapper';
 import { Download, RefreshCw, Upload } from 'lucide-react';
 
 type ClientItem = { id: string; name: string };
 
 const DocumentsManagement = () => {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [entryId, setEntryId] = useState<string>('general');
@@ -40,7 +38,7 @@ const DocumentsManagement = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.role]);
+  }, [user]);
 
   const selectedClientName = useMemo(() => clients.find(c => c.id === selectedClientId)?.name || '', [clients, selectedClientId]);
 
@@ -70,7 +68,7 @@ const DocumentsManagement = () => {
     }
   };
 
-  useEffect(() => { if (selectedClientId) refresh(); }, [selectedClientId, entryId]);
+  useEffect(() => { if (selectedClientId) refresh(); }, [selectedClientId, entryId, refresh]);
 
 return (
     <AuthWrapper 
@@ -112,11 +110,11 @@ return (
               <label className="text-sm text-gray-600">Espace (entryId)</label>
               <input value={entryId} onChange={(e) => setEntryId(e.target.value)}
                 placeholder="general" className="border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              <p className="text-xs text-gray-500">Astuce: utilisez "general" pour les documents génériques. Pour une écriture spécifique, indiquez son identifiant.</p>
+              <p className="text-xs text-gray-500">Astuce: utilisez &quot;general&quot; pour les documents génériques. Pour une écriture spécifique, indiquez son identifiant.</p>
             </div>
             <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
               <input type="checkbox" checked={includeGeneral} onChange={(e) => setIncludeGeneral(e.target.checked)} />
-              Inclure aussi l'espace "general"
+              Inclure aussi l&apos;espace &quot;general&quot;
             </label>
           </div>
         </div>

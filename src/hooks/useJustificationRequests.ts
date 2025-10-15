@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { ClientLedger } from '@/types/accounting';
 import { JustificationRequest } from '@/types/ledger';
-import { llmService, AnalysisContext } from '@/services/llmService';
+import { AnalysisContext, llmService } from '@/services/llmService';
 import { ClientLedgerService } from '@/services/clientLedgerService';
 import { useNotification } from '@/contexts/NotificationContextSimple';
 

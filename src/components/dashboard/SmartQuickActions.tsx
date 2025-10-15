@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
-  Zap, 
+  AlertTriangle, 
   Brain, 
-  Sparkles,
-  TrendingUp,
-  Users,
+  Calendar,
   FileText,
   MessageCircle,
-  Calendar,
+  Sparkles,
   Target,
-  AlertTriangle
+  TrendingUp,
+  Users,
+  Zap
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 

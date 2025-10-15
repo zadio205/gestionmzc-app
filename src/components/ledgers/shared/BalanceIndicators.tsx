@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { TrendingUp, TrendingDown, BarChart3, PieChart, DollarSign, Target, Activity, Shield } from "lucide-react";
+import { Activity, BarChart3, DollarSign, PieChart, Shield, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { BalanceIndicator } from "@/types/accounting";
 
 interface BalanceIndicatorsProps {

@@ -2,13 +2,13 @@
 
 import React from 'react';
 import { 
-  FileText, 
-  MessageCircle, 
-  UserPlus, 
+  AlertCircle, 
+  CheckCircle, 
+  Clock, 
+  FileText,
+  MessageCircle,
   Upload,
-  CheckCircle,
-  AlertCircle,
-  Clock
+  UserPlus
 } from 'lucide-react';
 
 interface Activity {

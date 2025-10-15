@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Database, Download, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
-import { runBalanceCacheMigration, cleanupLocalStorageAfterMigration, checkIfMigrationNeeded } from '@/utils/balanceCacheMigration';
+import React, { useEffect, useState } from 'react';
+import { AlertCircle, CheckCircle, Database, Download, Trash2 } from 'lucide-react';
+import { checkIfMigrationNeeded, cleanupLocalStorageAfterMigration, runBalanceCacheMigration } from '@/utils/balanceCacheMigration';
 import { useNotification } from '@/contexts/NotificationContextSimple';
 
 interface BalanceCacheMigrationProps {

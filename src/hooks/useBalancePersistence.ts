@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { BalanceItem } from '@/types/accounting';
 import { balanceCache } from '@/lib/cache/unified/BalanceCache';
 

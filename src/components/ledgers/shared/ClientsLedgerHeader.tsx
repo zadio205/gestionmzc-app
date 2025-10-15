@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, AlertTriangle, Download, Mail, Loader } from 'lucide-react';
+import { AlertTriangle, Calendar, Download, Loader, Mail } from 'lucide-react';
 import FileImporter from '@/components/ui/FileImporter';
 
 interface ClientsLedgerHeaderProps {

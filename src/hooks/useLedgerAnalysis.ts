@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ClientLedger, SupplierLedger, MiscellaneousLedger } from '@/types/accounting';
+import { ClientLedger, MiscellaneousLedger, SupplierLedger } from '@/types/accounting';
 
 // Type union pour tous les types de ledger
 type LedgerEntry = ClientLedger | SupplierLedger | MiscellaneousLedger;

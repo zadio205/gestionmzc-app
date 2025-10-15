@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase';
-import { listClientsCache, addClientCache, updateClientCache, deleteClientCache, seedClientsCache } from '@/lib/clientsCache';
+import { addClientCache, deleteClientCache, listClientsCache, seedClientsCache, updateClientCache } from '@/lib/clientsCache';
 import { InputValidator } from '@/utils/inputValidation';
 
 // Ensure this route runs on Node.js runtime (not Edge) and is dynamic
@@ -197,7 +197,7 @@ export async function POST(request: Request) {
     if (hasSupabase) {
       const supabase = supabaseServer();
       // Tentative 1: schéma snake_case
-      let res = await supabase.from('clients').insert(payload).select('*').single();
+      const res = await supabase.from('clients').insert(payload).select('*').single();
       data = res.data;
       error = res.error;
       if (error) {
@@ -357,7 +357,7 @@ export async function PATCH(request: Request) {
       const supabase = supabaseServer();
     // Envoyer uniquement des clés snake_case au schéma fourni
     const res = await supabase.from('clients').update(updatesSnake).eq('id', id).select('*').single();
-    let error = res.error;
+    const error = res.error;
     data = res.data;
       if (error) {
         // Fallback silencieux vers cache pour éviter 500 et débloquer l'UI

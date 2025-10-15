@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, X, CheckCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, X } from 'lucide-react';
 import { useNotification } from '@/contexts/NotificationContextSimple';
 import { useAuth } from '@/hooks/useAuth';
 import { JustificatifService } from '@/services/justificatifService';

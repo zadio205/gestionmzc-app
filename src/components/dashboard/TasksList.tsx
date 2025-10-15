@@ -2,12 +2,12 @@
 
 import React from 'react';
 import { 
-  CheckCircle, 
-  Clock, 
   AlertTriangle, 
-  User,
-  Calendar,
-  MoreHorizontal
+  Calendar, 
+  CheckCircle, 
+  Clock,
+  MoreHorizontal,
+  User
 } from 'lucide-react';
 
 interface Task {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Eye, AlertTriangle, BadgeCheck, Download, RefreshCw } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Download, Eye, RefreshCw, X } from 'lucide-react';
 import type { ClientLedger } from '@/types/accounting';
 
 interface EntryDetailsModalProps {

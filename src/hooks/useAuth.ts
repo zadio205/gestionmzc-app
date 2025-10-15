@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import type { AppUser, UserRole } from '@/types/auth';
 import { normalizeUserRole } from '@/utils/role';

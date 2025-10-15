@@ -32,7 +32,7 @@ const CollaborateurDocuments = () => {
     }
   };
 
-  useEffect(() => { load(); }, [user?.clientId]);
+  useEffect(() => { load(); }, [user?.clientId, load]);
 
   if (!user && !loading) {
     return <UnauthorizedRedirect />;

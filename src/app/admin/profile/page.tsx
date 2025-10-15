@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
-import { User, Mail, Phone, MapPin, Calendar, Shield, Camera, Save, Key } from 'lucide-react';
+import { Camera, Key, Mail, MapPin, Phone, Save, Shield, User } from 'lucide-react';
 
 const AdminProfile = () => {
   const { user, loading } = useAuth();
@@ -203,7 +203,7 @@ const AdminProfile = () => {
                         Sécurité du compte
                       </h3>
                       <p className="text-sm text-yellow-700 mt-1">
-                        Maintenez votre compte sécurisé en utilisant un mot de passe fort et en activant l'authentification à deux facteurs.
+                        Maintenez votre compte sécurisé en utilisant un mot de passe fort et en activant l&apos;authentification à deux facteurs.
                       </p>
                     </div>
                   </div>
@@ -290,7 +290,7 @@ const AdminProfile = () => {
                 </div>
 
                 <div className="border-t border-gray-200 pt-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Préférences d'affichage</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Préférences d&apos;affichage</h3>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -325,7 +325,7 @@ const AdminProfile = () => {
           </div>
         </div>
 
-        {/* Statistiques d'activité */}
+        {/* Statistiques d&apos;activité */}
         <div className="bg-white shadow rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Activité récente</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

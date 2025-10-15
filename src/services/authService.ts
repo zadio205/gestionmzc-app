@@ -6,15 +6,15 @@
 import { supabaseServer } from '@/lib/supabase';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import type {
-  Profile,
+  AdminUsersResponse,
   AppUser,
   CreateUserInput,
+  Permission,
+  Profile,
+  ROLE_PERMISSIONS,
   UpdateUserInput,
   UpdateUserRoleInput,
   UserRole,
-  Permission,
-  ROLE_PERMISSIONS,
-  AdminUsersResponse,
   UserStats,
 } from '@/types/auth';
 import { normalizeUserRole } from '@/utils/role';

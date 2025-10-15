@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase';
-import { Justificatif } from '@/types/justificatif';
 import { logger } from '@/utils/logger';
 
 // Table Supabase pour stocker les métadonnées des justificatifs

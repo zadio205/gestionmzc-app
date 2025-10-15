@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Bell, 
   Brain, 
-  Zap,
   CheckCircle,
-  X,
   Clock,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  X,
+  Zap
 } from 'lucide-react';
 import { aiService } from '@/services/aiService';
 

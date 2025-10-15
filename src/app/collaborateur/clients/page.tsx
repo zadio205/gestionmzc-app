@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
-import { Search, Eye, Mail, Phone, MessageCircle, FileText, Calendar } from 'lucide-react';
+import { Calendar, Eye, FileText, Mail, MessageCircle, Phone, Search } from 'lucide-react';
 import ClientDetailsModal from '@/components/clients/ClientDetailsModal';
 import { Client } from '@/types';
 
@@ -59,7 +59,7 @@ const CollaborateurClients = () => {
       setSelectedClient(found);
       setShowDetailsModal(true);
     }
-  }, [clients]); // Add clients to dependency array
+  }, []); // Remove clients from dependency array to avoid infinite loop
 
   // Si les clients sont chargés plus tard, retenter depuis l'URL
   useEffect(() => {
@@ -75,7 +75,7 @@ const CollaborateurClients = () => {
         setShowDetailsModal(true);
       }
     }
-  }, [clients, selectedClient]);
+  }, [selectedClient]);
 
   const initialTabFromUrl = useMemo(() => {
     if (typeof window === 'undefined') return undefined;
