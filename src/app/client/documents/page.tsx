@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import UploadJustificatifModal from '@/components/ledgers/shared/UploadJustificatifModal';
-import { Upload, Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, Upload } from 'lucide-react';
 
 const ClientDocuments = () => {
   const { user, loading } = useAuth();
@@ -27,15 +27,14 @@ const ClientDocuments = () => {
       if (!res.ok) throw new Error('Erreur de chargement');
       const data = await res.json();
       setFiles(data.files || []);
-    } catch (e) {
-      // noop
-    } finally {
+       } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
     refresh();
+  }, [user?.clientId, refresh]);fresh();
   }, [user?.clientId]);
 
   if (!user && !loading) {

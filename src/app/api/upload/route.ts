@@ -20,7 +20,7 @@ export async function GET() {
     try {
       const supabase = supabaseServer();
       // Essayer un list minimal pour vérifier l'existence du bucket/chemin
-      const { data, error } = await supabase.storage.from(bucket).list('', { limit: 1 });
+      const { error } = await supabase.storage.from(bucket).list('', { limit: 1 });
       details.bucketListOk = !error;
       details.bucketError = error?.message || null;
       return NextResponse.json({ ok: !error, ...details }, { status: 200 });

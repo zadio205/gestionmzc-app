@@ -5,11 +5,11 @@
 
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
-import type { AdminUsersResponse, UserRole, CreateUserInput } from '@/types/auth';
+import type { AdminUsersResponse, CreateUserInput, UserRole } from '@/types/auth';
 import { CreateUserModal } from './CreateUserModal';
 import { logger } from '@/utils/logger';
 
@@ -134,7 +134,7 @@ export function UserManagement({
       loadUsers();
       loadStats();
     }
-  }, [user, isSuperAdmin, isAdmin, queryString, authLoading, permissionsLoading]);
+  }, [user, isSuperAdmin, isAdmin, queryString, authLoading, permissionsLoading, loadStats, loadUsers]);
 
   const loadUsers = async () => {
     if (!user) return;

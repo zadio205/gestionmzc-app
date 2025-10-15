@@ -1,11 +1,11 @@
 import React from 'react';
 import {
-  CurrencyEuroIcon,
   ChartBarIcon,
-  UserGroupIcon,
+  CheckCircleIcon,
+  CurrencyEuroIcon,
   DocumentTextIcon,
   ExclamationTriangleIcon,
-  CheckCircleIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '@/services/clientLedgerService';
 

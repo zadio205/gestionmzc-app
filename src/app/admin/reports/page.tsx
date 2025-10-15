@@ -7,12 +7,12 @@ import ReportHistory from '@/components/reports/ReportHistory';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { 
-  FileText, 
-  Plus, 
-  BarChart3,
+  BarChart3, 
+  Brain, 
+  FileText,
+  Plus,
   TrendingUp,
-  Users,
-  Brain
+  Users
 } from 'lucide-react';
 
 const AdminReportsPage = () => {
@@ -135,7 +135,7 @@ const AdminReportsPage = () => {
                 <h3 className="font-medium text-gray-900">Performance Globale</h3>
               </div>
               <p className="text-sm text-gray-600">
-                Vue d'ensemble des performances système avec analyses IA
+                Vue d&apos;ensemble des performances système avec analyses IA
               </p>
             </div>
             

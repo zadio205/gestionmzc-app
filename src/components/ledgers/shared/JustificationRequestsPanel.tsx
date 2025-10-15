@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Brain, XCircle } from 'lucide-react';
+import { Brain, FileText, XCircle } from 'lucide-react';
 import { ClientLedger } from '@/types/accounting';
 import { JustificationRequest } from '@/types/ledger';
 import { ClientLedgerService } from '@/services/clientLedgerService';

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FileText, MessageCircle, Calculator, Bell } from 'lucide-react';
+import { Bell, Calculator, FileText, MessageCircle } from 'lucide-react';
 
 interface ClientDashboardWidgetProps {
   clientId: string;

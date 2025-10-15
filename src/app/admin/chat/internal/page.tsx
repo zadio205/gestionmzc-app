@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
-import { Send, Users, Search } from 'lucide-react';
+import { Search, Send, Users } from 'lucide-react';
 
 const InternalChat = () => {
   const { user, loading } = useAuth();
@@ -38,7 +38,7 @@ const InternalChat = () => {
   const handleSendMessage = () => {
     if (message.trim() && selectedUser) {
       // Logique d'envoi de message
-      console.log('Envoi message:', message, 'à:', selectedUser);
+      // TODO: Implémenter l'envoi de message
       setMessage('');
     }
   };

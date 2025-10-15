@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertTriangle, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CheckCircle, TrendingUp, XCircle } from 'lucide-react';
 
 interface AnalysisData {
   unsolvedInvoices: number;

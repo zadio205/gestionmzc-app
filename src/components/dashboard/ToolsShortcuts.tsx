@@ -2,14 +2,14 @@
 
 import React from 'react';
 import { 
+  BarChart3, 
   Calculator, 
-  FileSpreadsheet, 
-  PieChart, 
-  TrendingUp,
+  Database, 
+  FileSpreadsheet,
   FileText,
-  Database,
-  BarChart3,
-  Settings
+  PieChart,
+  Settings,
+  TrendingUp
 } from 'lucide-react';
 
 interface Tool {

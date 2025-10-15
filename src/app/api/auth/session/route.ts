@@ -3,7 +3,7 @@
  * Permet au middleware et aux routes serveur d'accéder aux tokens via cookies
  */
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { type CookieOptions, createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 
 function createResponseWithSupabase(request: NextRequest) {

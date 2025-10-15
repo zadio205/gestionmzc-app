@@ -98,7 +98,7 @@ export class DashboardService {
     }
 
     try {
-      let query = supabaseServer()
+      const query = supabaseServer()
         .from('dashboard_stats')
         .select('*')
         .eq('user_id', userId)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
@@ -166,7 +166,7 @@ export default function SignIn() {
 
           <div className="text-center">
             <Link href="/auth/signup" className="text-blue-600 hover:text-blue-500">
-              Pas encore de compte ? S'inscrire
+              Pas encore de compte ? S&apos;inscrire
             </Link>
           </div>
 

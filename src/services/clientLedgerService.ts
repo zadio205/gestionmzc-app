@@ -1,6 +1,6 @@
 import { ClientLedger } from '@/types/accounting';
 import { AnalysisResult } from '@/types/ledger';
-import { AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 /**
  * Service for client ledger business logic

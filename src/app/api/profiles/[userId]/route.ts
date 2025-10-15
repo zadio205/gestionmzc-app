@@ -8,7 +8,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase';
-import type { UserRole } from '@/types/auth';
 import { normalizeUserRole } from '@/utils/role';
 import { logger } from '@/utils/logger';
 

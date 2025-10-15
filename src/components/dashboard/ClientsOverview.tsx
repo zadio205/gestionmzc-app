@@ -2,12 +2,12 @@
 
 import React from 'react';
 import { 
+  AlertCircle, 
   Building2, 
-  MessageCircle, 
   FileText, 
-  AlertCircle,
-  TrendingUp,
-  MoreHorizontal
+  MessageCircle,
+  MoreHorizontal,
+  TrendingUp
 } from 'lucide-react';
 
 interface ClientOverview {

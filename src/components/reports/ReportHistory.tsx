@@ -1,18 +1,18 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
-  FileText, 
-  Download, 
+  AlertCircle, 
+  Brain, 
   Calendar, 
-  Brain,
-  Clock,
   CheckCircle,
-  AlertCircle,
+  Clock,
+  Download,
   Eye,
+  FileText,
   Trash2
 } from 'lucide-react';
-import { reportService, ReportData } from '@/services/reportService';
+import { ReportData, reportService } from '@/services/reportService';
 
 interface ReportHistoryProps {
   userRole: 'admin' | 'collaborateur';

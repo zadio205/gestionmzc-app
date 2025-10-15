@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 // import { FixedSizeList as List } from 'react-window'; // Disabled for now
 import {
   ChevronDownIcon,
   ChevronUpIcon,
+  DocumentIcon,
   EyeIcon,
   PencilIcon,
-  DocumentIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '@/services/clientLedgerService';
 import type { LedgerEntry } from '@/types/ledger';

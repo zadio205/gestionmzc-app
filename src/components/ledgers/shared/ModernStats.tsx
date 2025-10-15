@@ -2,14 +2,14 @@
 
 import React from 'react';
 import { 
-  TrendingUp, 
-  TrendingDown, 
+  Activity, 
   AlertTriangle, 
-  CheckCircle2, 
+  BarChart3, 
+  Calendar, 
+  CheckCircle2,
   DollarSign,
-  Calendar,
-  BarChart3,
-  Activity,
+  TrendingDown,
+  TrendingUp,
   Zap
 } from 'lucide-react';
 

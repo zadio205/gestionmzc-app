@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
-import { Plus, Edit, Trash2, Eye, Calendar, User, Tag } from 'lucide-react';
+import { Calendar, Edit, Eye, Plus, Tag, Trash2, User } from 'lucide-react';
 
 const AdminNews = () => {
   const { user, loading } = useAuth();

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { LogOut, User, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Menu, User } from 'lucide-react';
 
 interface HeaderProps {
   collapsed?: boolean;

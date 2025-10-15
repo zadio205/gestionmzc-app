@@ -5,8 +5,8 @@
 import { supabaseBrowser } from '@/lib/supabase/client';
 import type { BalanceItem } from '@/types/accounting';
 import { 
-  getResolvedBalanceTable,
   clearBalanceCache as clearBalanceLocalCache,
+  getResolvedBalanceTable,
   setResolvedBalanceTable as setBalanceLocalCache
 } from '@/lib/balanceRealCache';
 import { balanceCache } from '@/cache/unified/BalanceCache';

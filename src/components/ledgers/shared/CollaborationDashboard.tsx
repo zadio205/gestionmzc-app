@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
-  Bell, 
-  MessageCircle, 
   AlertTriangle, 
+  Bell, 
+  Calendar, 
   CheckCircle, 
   Clock, 
-  User, 
-  Eye,
+  Eye, 
   Filter,
+  MessageCircle,
   Search,
-  Calendar
+  User
 } from 'lucide-react';
 
 interface Notification {

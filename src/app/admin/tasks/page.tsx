@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
-import { Plus, Calendar, User, Clock, CheckCircle, AlertCircle, Filter } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle, Clock, Filter, Plus, User } from 'lucide-react';
 
 const AdminTasks = () => {
   const { user, loading } = useAuth();
@@ -258,7 +258,7 @@ const AdminTasks = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Date d'échéance</label>
+                    <label className="block text-sm font-medium text-gray-700">Date d&apos;échéance</label>
                     <input
                       type="date"
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"

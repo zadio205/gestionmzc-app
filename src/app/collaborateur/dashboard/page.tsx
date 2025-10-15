@@ -1,15 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
-import QuickActions from '@/components/dashboard/QuickActions';
 import TasksList from '@/components/dashboard/TasksList';
 import ClientsOverview from '@/components/dashboard/ClientsOverview';
 import MessagesWidget from '@/components/dashboard/MessagesWidget';
 import MetricsChart from '@/components/dashboard/MetricsChart';
-import NotificationsPanel from '@/components/dashboard/NotificationsPanel';
 import CalendarWidget from '@/components/dashboard/CalendarWidget';
 import ToolsShortcuts from '@/components/dashboard/ToolsShortcuts';
 import SmartNotifications from '@/components/dashboard/SmartNotifications';
@@ -21,34 +19,29 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { 
   Building2, 
-  FileText, 
-  MessageCircle,
+  Calculator, 
+  Calendar,
   CheckCircle,
   Clock,
+  FileText,
+  MessageCircle,
   Plus,
-  Upload,
-  Calculator,
-  Calendar,
-  TrendingUp
+  TrendingUp,
+  Upload
 } from 'lucide-react';
 
 const CollaborateurDashboard = () => {
-  const { user, loading: authLoading } = useAuth();
-  const { 
+  const { user, loading  const { 
     stats, 
     activities, 
-    tasks, 
-    clients, 
-    messages, 
-    notifications,
-    loading: dataLoading,
-    error,
+    tasks,
+    clients,
+    messages,
     actions 
-  } = useDashboardData('collaborateur', user?.id);
-  
-  const [showReportGenerator, setShowReportGenerator] = useState(false);
+  } = useDashboardData('collaborateur', user?.id);oardData('c  const [showReportGenerator, setShowReportGenerator] = useState(false);
 
   // Données de démonstration - à remplacer par de vraies données API
+  const _mockActivities = [ API
   const mockActivities = [
     {
       id: '1',
@@ -84,7 +77,7 @@ const CollaborateurDashboard = () => {
     }
   ];
 
-  const mockTasks = [
+  const _mockTasks = [
     {
       id: '1',
       title: 'Révision balance comptable',
@@ -117,7 +110,7 @@ const CollaborateurDashboard = () => {
     }
   ];
 
-  const mockClients = [
+  const _mockClients = [
     {
       id: '1',
       name: 'SARL Exemple',
@@ -150,7 +143,7 @@ const CollaborateurDashboard = () => {
     }
   ];
 
-  const mockMessages = [
+  const _mockMessages = [
     {
       id: '1',
       sender: 'Marie Dubois',
@@ -182,7 +175,7 @@ const CollaborateurDashboard = () => {
     }
   ];
 
-  const mockNotifications = [
+  const _mockNotifications = [
     {
       id: '1',
       type: 'warning' as const,
@@ -248,7 +241,7 @@ const CollaborateurDashboard = () => {
     }
   ];
 
-  const quickActions = [
+  const _quickActions = [
     {
       id: '1',
       title: 'Nouveau client',
@@ -256,7 +249,7 @@ const CollaborateurDashboard = () => {
       icon: Plus,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
-      onClick: () => console.log('Nouveau client')
+      onClick: () => {}
     },
     {
       id: '2',
@@ -265,7 +258,7 @@ const CollaborateurDashboard = () => {
       icon: Upload,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
-      onClick: () => console.log('Upload document')
+      onClick: () => {}
     },
     {
       id: '3',
@@ -274,7 +267,7 @@ const CollaborateurDashboard = () => {
       icon: Calculator,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
-      onClick: () => console.log('Simulateur')
+      onClick: () => {}
     },
     {
       id: '4',
@@ -283,7 +276,7 @@ const CollaborateurDashboard = () => {
       icon: Calendar,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100',
-      onClick: () => console.log('Planifier RDV')
+      onClick: () => {}
     }
   ];
 
@@ -385,7 +378,7 @@ const CollaborateurDashboard = () => {
             <SmartQuickActions 
               userRole="collaborateur" 
               userData={{ stats, clients, tasks }}
-              onActionClick={(actionId) => console.log('Action clicked:', actionId)}
+              onActionClick={() => {}}
             />
             <ToolsShortcuts userRole="collaborateur" />
             <ClientsOverview clients={clients} userRole="collaborateur" />

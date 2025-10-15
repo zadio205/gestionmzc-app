@@ -7,12 +7,12 @@ import ReportHistory from '@/components/reports/ReportHistory';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
 import { 
+  Brain, 
   FileText, 
-  Plus, 
-  Users,
-  TrendingUp,
   PieChart,
-  Brain
+  Plus,
+  TrendingUp,
+  Users
 } from 'lucide-react';
 
 const CollaborateurReportsPage = () => {
@@ -176,7 +176,7 @@ const CollaborateurReportsPage = () => {
             </div>
             <div className="bg-white/50 rounded-lg p-3">
               <h4 className="font-medium text-gray-900 mb-1">🎯 Personnalisation</h4>
-              <p className="text-gray-600">Activez l'IA pour des recommandations personnalisées</p>
+              <p className="text-gray-600">Activez l&apos;IA pour des recommandations personnalisées</p>
             </div>
             <div className="bg-white/50 rounded-lg p-3">
               <h4 className="font-medium text-gray-900 mb-1">⏰ Meilleur moment</h4>

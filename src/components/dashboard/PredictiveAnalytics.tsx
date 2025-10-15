@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  TrendingUp,
-  TrendingDown,
   AlertTriangle,
-  Target,
+  BarChart3,
   Brain,
   Calendar,
   DollarSign,
+  Target,
+  TrendingDown,
+  TrendingUp,
   Users,
-  BarChart3,
 } from "lucide-react";
 import { aiService } from "@/services/aiService";
 

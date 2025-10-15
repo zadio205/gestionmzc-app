@@ -6,7 +6,7 @@ import PageLayout from '@/components/layout/PageLayout';
 import OptimizedLink from '@/components/ui/OptimizedLink';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
-import { FileText, MessageCircle, ClipboardList, Download, Phone, Calculator } from 'lucide-react';
+import { Calculator, ClipboardList, Download, FileText, MessageCircle, Phone } from 'lucide-react';
 
 const ClientDashboard = () => {
   const { user, loading } = useAuth();

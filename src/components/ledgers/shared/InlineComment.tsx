@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { MessageCircle, Send, User, Clock, ChevronDown, ChevronUp } from 'lucide-react';
-import { listComments, addComment } from '@/services/commentsService';
+import React, { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Clock, MessageCircle, Send, User } from 'lucide-react';
+import { addComment, listComments } from '@/services/commentsService';
 import type { LedgerComment } from '@/types/comments';
 
 interface CommentUI {

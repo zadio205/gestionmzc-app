@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
 import UnauthorizedRedirect from '@/components/auth/UnauthorizedRedirect';
-import { Send, MessageCircle, Search, Phone, Video } from 'lucide-react';
+import { MessageCircle, Phone, Search, Send, Video } from 'lucide-react';
 
 const ClientChat = () => {
   const { user, loading } = useAuth();
@@ -82,7 +82,7 @@ const ClientChat = () => {
 
   const handleSendMessage = () => {
     if (message.trim() && selectedClient) {
-      console.log('Envoi message:', message, 'à:', selectedClient);
+      // TODO: Implémenter l'envoi de message
       setMessage('');
     }
   };

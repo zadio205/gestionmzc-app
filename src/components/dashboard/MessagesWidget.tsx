@@ -2,11 +2,11 @@
 
 import React from 'react';
 import { 
+  Clock, 
   MessageCircle, 
-  User, 
-  Clock,
   MoreHorizontal,
-  Reply
+  Reply,
+  User
 } from 'lucide-react';
 
 interface Message {

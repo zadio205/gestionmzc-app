@@ -9,10 +9,10 @@ interface TemplateProps {
 }
 
 const loadingSteps = [
-  { id: 'auth', label: 'Vérification de l\'authentification', duration: 800 },
-  { id: 'permissions', label: 'Chargement des permissions', duration: 600 },
-  { id: 'data', label: 'Récupération des données', duration: 1000 },
-  { id: 'ui', label: 'Rendu de l\'interface', duration: 400 },
+  { id: 'auth', label: 'Vérification de l\'authentification', status: 'pending' as const, duration: 800 },
+  { id: 'permissions', label: 'Chargement des permissions', status: 'pending' as const, duration: 600 },
+  { id: 'data', label: 'Récupération des données', status: 'pending' as const, duration: 1000 },
+  { id: 'ui', label: 'Rendu de l\'interface', status: 'pending' as const, duration: 400 },
 ];
 
 export default function Template({ children }: TemplateProps) {

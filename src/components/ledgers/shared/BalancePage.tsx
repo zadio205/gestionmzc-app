@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, BarChart3, PieChart } from "lucide-react";
-import { BalanceItem, BalanceIndicator } from "@/types/accounting";
+import React, { useEffect, useState } from "react";
+import { BarChart3, PieChart, TrendingDown, TrendingUp } from "lucide-react";
+import { BalanceIndicator, BalanceItem } from "@/types/accounting";
 import FileImporter from "@/components/ui/FileImporter";
 import { useNotification } from "@/contexts/NotificationContextSimple";
 import { getLastUsedPeriod, setLastUsedPeriod } from "@/lib/balanceRealCache";
@@ -44,7 +44,7 @@ const BalancePage: React.FC<BalancePageProps> = ({ clientId }) => {
         console.warn('Erreur lors de la récupération de la dernière période:', error);
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [clientId]);
 
   // Fermer les états internes si le parent se ferme

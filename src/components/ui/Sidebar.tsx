@@ -3,21 +3,21 @@
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import OptimizedLink from '@/components/ui/OptimizedLink';
-import { useSmartPrefetch, getPrefetchRoutes } from '@/hooks/useSmartPrefetch';
+import { getPrefetchRoutes, useSmartPrefetch } from '@/hooks/useSmartPrefetch';
 import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  UserCog, 
   Calculator, 
+  ChevronDown, 
+  ChevronRight, 
   ClipboardList, 
-  Newspaper, 
-  MessageSquare, 
+  FileText, 
+  LayoutDashboard, 
   MessageCircle, 
-  User,
+  MessageSquare, 
+  Newspaper, 
   Shield,
-  ChevronDown,
-  ChevronRight,
+  User,
+  UserCog,
+  Users,
   X
 } from 'lucide-react';
 

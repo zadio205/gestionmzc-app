@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createUser, getAdminUsers, getUserStats, getPlatformAdmins, getPlatformAdminStats, getUserProfile } from '@/services/authService';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createUser, getAdminUsers, getPlatformAdminStats, getPlatformAdmins, getUserProfile, getUserStats } from '@/services/authService';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { CreateUserInput } from '@/types/auth';
 import { logger } from '@/utils/logger';

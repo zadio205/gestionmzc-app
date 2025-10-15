@@ -1,4 +1,4 @@
-import { ClientLedger, SupplierLedger, MiscellaneousLedger } from '@/types/accounting';
+import { ClientLedger, MiscellaneousLedger, SupplierLedger } from '@/types/accounting';
 
 const normalize = (s: string | undefined | null) =>
   String(s || '')
