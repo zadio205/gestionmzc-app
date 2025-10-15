@@ -54,7 +54,10 @@ export default function SignUp() {
             await fetch('/api/auth/dev-confirm', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: formData.e        router.push('/auth/signin?message=Compte créé avec succès');} catch (error) {
+              body: JSON.stringify({ email: formData.email })
+            });
+            router.push('/auth/signin?message=Compte créé avec succès');
+          } catch (error) {
       setError('Une erreur est survenue');
     } finally {
       setLoading(false);
