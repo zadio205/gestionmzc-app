@@ -31,17 +31,17 @@ import {
 } from 'lucide-react';
 
 const CollaborateurDashboard = () => {
-  const { user, loading  const { 
+  const { user, loading } = useAuth();
+  const { 
     stats, 
     activities, 
     tasks,
     clients,
     messages,
     actions 
-  } = useDashboardData('collaborateur', user?.id);oardData('c  const [showReportGenerator, setShowReportGenerator] = useState(false);
-
-  // Données de démonstration - à remplacer par de vraies données API
-  const _mockActivities = [ API
+  } = useDashboardData('collaborateur', user?.id);
+  const [showReportGenerator, setShowReportGe  // Données de démonstration - à remplacer par de vraies données API
+  const mockActivities = [PI
   const mockActivities = [
     {
       id: '1',
@@ -280,7 +280,7 @@ const CollaborateurDashboard = () => {
     }
   ];
 
-  if (!user && !authLoading) {
+  if (!user && !loading) {
     return <UnauthorizedRedirect />;
   }
 

@@ -32,9 +32,7 @@ const ClientDocuments = () => {
     }
   };
 
-  useEffect(() => {
-    refresh();
-  }, [user?.clientId, refresh]);fresh();
+  useE  }, [user?.clientId, refresh]);sh();
   }, [user?.clientId]);
 
   if (!user && !loading) {
